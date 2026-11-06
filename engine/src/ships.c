@@ -151,8 +151,10 @@ void ships_state_copy(OfeGame *dst, const OfeGame *src) {
     if (!dst->sub->ships) dst->sub->ships = ships_state_new(dst);
     ShipsState *d = dst->sub->ships;
     state_reserve(d, s->cap);
-    memcpy(d->port_rej, s->port_rej, (size_t)s->cap * sizeof(int16_t));
-    memcpy(d->port_gen, s->port_gen, (size_t)s->cap * sizeof(uint16_t));
+    if (s->cap > 0) {
+        memcpy(d->port_rej, s->port_rej, (size_t)s->cap * sizeof(int16_t));
+        memcpy(d->port_gen, s->port_gen, (size_t)s->cap * sizeof(uint16_t));
+    }
     /* Slots past s->cap are fresh in the source. */
     if (d->cap > s->cap) {
         memset(d->port_rej + s->cap, 0, (size_t)(d->cap - s->cap) * sizeof(int16_t));
