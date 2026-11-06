@@ -138,6 +138,14 @@ void rail_tick(OfeGame *g);
 /* A city, port or factory finished construction / was destroyed / changed
  * owner: (re)connect it to the rail network. */
 void rail_on_structure_changed(OfeGame *g, int32_t slot);
+/* Inspection (tests, feature extraction). */
+int32_t rail_station_count(const OfeGame *g);
+int32_t rail_edge_count(const OfeGame *g); /* railroads (undirected) */
+/* Owner of the station on unit `id` (read live from the unit), -1 if the unit
+ * is not a station. */
+int32_t rail_station_owner(const OfeGame *g, UnitId id);
+/* Are the two units' stations joined by railroads (any number of hops)? */
+bool rail_connected(const OfeGame *g, UnitId a, UnitId b);
 
 /* ------------------------------------------------------------------------ */
 /* Doomsday clock (doomsday.c)                                               */
