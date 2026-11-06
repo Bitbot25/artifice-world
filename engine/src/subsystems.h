@@ -192,9 +192,11 @@ void ai_state_free(OfeGame *g);
 void ai_tick(OfeGame *g);
 /* Called when an AI player spawns (seeds per-player AI state). */
 void ai_on_spawn(OfeGame *g, PlayerId p);
-/* Called when a player receives an alliance request (nations decide). */
-void ai_on_alliance_request(OfeGame *g, PlayerId requestor, PlayerId recipient);
-void ai_on_alliance_extension_prompt(OfeGame *g, PlayerId ai, PlayerId ally);
+/* Spawn phase: nations place themselves near their map spot and hop to a new
+ * one on their beat. Called once per spawn-phase tick (and at creation). */
+void ai_spawn_phase_tick(OfeGame *g);
+/* The spawn phase just ended: nations make their opening move. */
+void ai_on_spawn_phase_end(OfeGame *g);
 /* Spawns tribes during the spawn phase (ai_tribe.c). */
 void ai_spawn_tribes(OfeGame *g);
 

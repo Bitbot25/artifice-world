@@ -21,6 +21,7 @@ enum {
     AI_LAST_STRUCT, /* tick of the last placement (nations) */
     AI_PHASE, /* nations: 0 = full decision, 1 and 2 = structures only */
     AI_FLAGS,
+    AI_OFFSET, /* the beat: full decisions fall on ticks where tick % rate == offset */
 };
 enum {
     AIF_FIRST_DONE = 1, /* the opening land grab was sent */
@@ -158,6 +159,13 @@ bool ai_boat_route(AiCtx *c, PlayerId target, TileRef *landing, int32_t *length)
 /* A free-land shore within 5 tiles across the water that a boat can reach. */
 TileRef ai_find_free_land_landing(AiCtx *c);
 
+/* First tick >= from on the beat (tick % rate == offset), as OpenFront's
+ * `ticks % attackRate === attackTick`. */
+int32_t ai_next_beat(int32_t from, int32_t rate, int32_t offset);
+/* Requests and extension asks addressed to p, answered on its own decision
+ * tick like OpenFront's AIs (they are never answered the moment they arrive). */
+void ai_answer_alliance_asks(AiCtx *c);
+
 /* ---- tribes (ai_tribe.c) ---------------------------------------------- */
 void ai_tribe_init(OfeGame *g, PlayerId p);
 void ai_tribe_decide(OfeGame *g, PlayerId p);
@@ -165,6 +173,11 @@ bool ai_tribe_alliance_extension(OfeGame *g, PlayerId tribe, PlayerId ally);
 
 /* ---- nations (ai_nation.c, ai_build.c) -------------------------------- */
 void ai_nation_init(OfeGame *g, PlayerId p);
+/* The opening move: half the troops at the free land around the spawn. */
+void ai_nation_open(OfeGame *g, PlayerId p);
+/* Spawn phase: nations pick a spot near their map position and hop to a new
+ * one on every beat (ai_nation.c). Called once per spawn-phase tick. */
+void ai_nation_spawn_tick(OfeGame *g);
 void ai_nation_decide(OfeGame *g, PlayerId p);
 void ai_nation_structures_only(OfeGame *g, PlayerId p);
 void ai_nation_follow_up_landings(OfeGame *g);

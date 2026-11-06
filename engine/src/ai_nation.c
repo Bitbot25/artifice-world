@@ -70,6 +70,24 @@ static int32_t attack_rate(OfeGame *g, uint64_t *rng) {
     }
 }
 
+/* Wake-ups: a full decision on the beat, and structures-only turns at 1/3 and
+ * 2/3 of the period after it. Picks the earliest one after `now`. */
+static void schedule_after(OfeGame *g, PlayerId p, int32_t now) {
+    PlayerTable *pl = &g->players;
+    int32_t *st = pl->ai_state[p];
+    int32_t rate = st[AI_RATE];
+    int32_t shift[3] = {0, rate / 3, rate * 2 / 3};
+    int32_t best = INT32_MAX;
+    for (int k = 0; k < 3; k++) {
+        int32_t t = ai_next_beat(now + 1, rate, (st[AI_OFFSET] + shift[k]) % rate);
+        if (t < best) {
+            best = t;
+            st[AI_PHASE] = k;
+        }
+    }
+    pl->ai_next_tick[p] = best;
+}
+
 void ai_nation_init(OfeGame *g, PlayerId p) {
     PlayerTable *pl = &g->players;
     uint64_t *rng = &pl->ai_rng[p];
@@ -83,7 +101,43 @@ void ai_nation_init(OfeGame *g, PlayerId p) {
     st[AI_FLAGS] = 0;
     int32_t rate = attack_rate(g, rng);
     st[AI_RATE] = rate;
-    pl->ai_next_tick[p] = OFE_MAX(g->tick, g->spawn_phase_ticks) + rng_int(rng, 0, rate);
+    st[AI_OFFSET] = rng_int(rng, 0, rate);
+    schedule_after(g, p, g->spawn_phase_ticks);
+}
+
+/* ---- Spawning (NationExecution during the spawn phase) ------------------------------------------------- */
+
+/* A random free land tile within 25 tiles of the nation's map spot; half of
+ * the mountain tiles are skipped. */
+static TileRef nation_spawn_spot(OfeGame *g, PlayerId p) {
+    const OfeMap *m = g->map;
+    uint64_t *rng = &g->players.ai_rng[p];
+    int32_t ni = g->players.nation_index[p];
+    if (ni < 0) return -1;
+    int32_t cx = map_x(m, m->nations[ni].tile), cy = map_y(m, m->nations[ni].tile);
+    for (int tries = 0; tries < 50; tries++) {
+        int32_t x = rng_int(rng, cx - 25, cx + 25), y = rng_int(rng, cy - 25, cy + 25);
+        if (!map_in_bounds(m, x, y)) continue;
+        TileRef t = map_ref(m, x, y);
+        if (!map_is_ownable(m, t) || tile_has_owner(g, t)) continue;
+        if (m->tclass[t] == TC_MOUNTAIN && rng_chance(rng, 2)) continue;
+        return t;
+    }
+    return -1;
+}
+
+/* Nations place themselves on the first tick and, like OpenFront's, hop to a
+ * new spot on every beat until the phase ends. Tribes spawned before them, so
+ * a nation's disc is cut short by tribes (and nations) that got there first. */
+void ai_nation_spawn_tick(OfeGame *g) {
+    PlayerTable *pl = &g->players;
+    for (PlayerId p = 1; p < pl->count; p++) {
+        if (pl->type[p] != OFE_PLAYER_NATION || pl->nation_index[p] < 0) continue;
+        if (pl->ai_state[p][AI_RATE] == 0) ai_nation_init(g, p);
+        if (pl->spawned[p] && g->tick % pl->ai_state[p][AI_RATE] != pl->ai_state[p][AI_OFFSET]) continue;
+        TileRef spot = nation_spawn_spot(g, p);
+        if (spot >= 0) spawn_player(g, p, spot);
+    }
 }
 
 /* ---- Alliance decisions (NationAllianceBehavior) ------------------------------------------- */
@@ -226,28 +280,33 @@ bool ai_nation_alliance_decision(OfeGame *g, PlayerId self, PlayerId other, bool
     return partner_similarly_strong(g, rng, self, other);
 }
 
-void ai_on_alliance_request(OfeGame *g, PlayerId requestor, PlayerId recipient) {
-    if (g->players.type[recipient] == OFE_PLAYER_BOT) {
-        /* Tribes accept every request. */
-        issue_simple(g, OFE_INTENT_ALLIANCE_REQUEST, recipient, requestor);
-        return;
-    }
-    if (ai_nation_alliance_decision(g, recipient, requestor, true)) issue_simple(g, OFE_INTENT_ALLIANCE_REQUEST, recipient, requestor);
-    else issue_simple(g, OFE_INTENT_ALLIANCE_REJECT, recipient, requestor);
-}
-
-void ai_on_alliance_extension_prompt(OfeGame *g, PlayerId ai, PlayerId ally) {
-    if (g->players.type[ai] == OFE_PLAYER_BOT) {
-        ai_tribe_alliance_extension(g, ai, ally);
-        return;
-    }
-    if (ai_nation_alliance_decision(g, ai, ally, true)) issue_simple(g, OFE_INTENT_ALLIANCE_EXTENSION, ai, ally);
-}
-
-/* An ally asked to extend; answer if we haven't (the prompt may have come first). */
-static void handle_extension_requests(AiCtx *c) {
+/* Requests addressed to c->p, answered now, on its own turn (OpenFront's
+ * AIs look at their inbox only when they wake up). Tribes accept all of
+ * them; nations reject what was asked during the spawn phase and decide on
+ * the rest. */
+static void answer_requests(AiCtx *c) {
     OfeGame *g = c->g;
-    if (g->cfg.disable_alliances) return;
+    PlayerId from[AI_MAX_FIGHTS];
+    bool early[AI_MAX_FIGHTS];
+    int32_t n = 0;
+    for (int32_t i = 0; i < g->alliance_requests.len && n < AI_MAX_FIGHTS; i++) {
+        const AllianceRequest *r = &g->alliance_requests.data[i];
+        if (r->recipient != c->p) continue;
+        from[n] = r->requestor;
+        early[n++] = r->created_tick <= g->spawn_phase_ticks + 1;
+    }
+    bool tribe = g->players.type[c->p] == OFE_PLAYER_BOT;
+    for (int32_t i = 0; i < n; i++) {
+        bool yes = tribe || (!early[i] && ai_nation_alliance_decision(g, c->p, from[i], true));
+        issue_simple(g, yes ? OFE_INTENT_ALLIANCE_REQUEST : OFE_INTENT_ALLIANCE_REJECT, c->p, from[i]);
+    }
+}
+
+/* An ally asked to extend and we have not: say yes if we like them. The AIs
+ * never ask first; only an agent's ask is answered. */
+static void answer_extensions(AiCtx *c) {
+    OfeGame *g = c->g;
+    bool tribe = g->players.type[c->p] == OFE_PLAYER_BOT;
     for (int32_t i = 0; i < g->alliances.len; i++) {
         const Alliance *al = &g->alliances.data[i];
         if (al->a != c->p && al->b != c->p) continue;
@@ -255,11 +314,14 @@ static void handle_extension_requests(AiCtx *c) {
         bool theirs_asked = al->a == c->p ? al->extend_b : al->extend_a;
         if (mine_asked || !theirs_asked) continue;
         PlayerId other = al->a == c->p ? al->b : al->a;
-        if (ai_nation_alliance_decision(g, c->p, other, true)) {
-            issue_simple(g, OFE_INTENT_ALLIANCE_EXTENSION, c->p, other);
-            return; /* the alliance list may have changed */
-        }
+        if (tribe || ai_nation_alliance_decision(g, c->p, other, true)) issue_simple(g, OFE_INTENT_ALLIANCE_EXTENSION, c->p, other);
     }
+}
+
+void ai_answer_alliance_asks(AiCtx *c) {
+    if (c->g->cfg.disable_alliances) return;
+    answer_requests(c);
+    answer_extensions(c);
 }
 
 static void maybe_send_alliance_requests(AiCtx *c, const Bordering *bd) {
@@ -1122,33 +1184,27 @@ void ai_nation_follow_up_landings(OfeGame *g) {
 
 /* ---- Entry points ------------------------------------------------------------------------------------------------ */
 
-static void schedule_next(OfeGame *g, PlayerId p) {
-    PlayerTable *pl = &g->players;
-    int32_t *st = pl->ai_state[p];
-    int32_t third = st[AI_RATE] / 3;
-    if (st[AI_PHASE] == 2) {
-        pl->ai_next_tick[p] = g->tick + st[AI_RATE] - 2 * third;
-        st[AI_PHASE] = 0;
-    } else {
-        pl->ai_next_tick[p] = g->tick + third;
-        st[AI_PHASE]++;
-    }
+void ai_nation_open(OfeGame *g, PlayerId p) {
+    int32_t *st = g->players.ai_state[p];
+    AiCtx c;
+    ai_ctx_begin(&c, g, p);
+    st[AI_FLAGS] |= AIF_FIRST_DONE;
+    ai_issue_attack(&c, 0, my_troops(&c) / 2.0);
+    schedule_after(g, p, g->tick);
 }
 
 void ai_nation_decide(OfeGame *g, PlayerId p) {
     int32_t *st = g->players.ai_state[p];
-    schedule_next(g, p);
+    if (!(st[AI_FLAGS] & AIF_FIRST_DONE)) {
+        ai_nation_open(g, p); /* a late spawner: its first turn is the opening */
+        return;
+    }
+    schedule_after(g, p, g->tick);
 
     AiCtx c;
     ai_ctx_begin(&c, g, p);
-    if (!(st[AI_FLAGS] & AIF_FIRST_DONE)) {
-        /* Opening: send half the troops at the free land around the spawn. */
-        st[AI_FLAGS] |= AIF_FIRST_DONE;
-        ai_issue_attack(&c, 0, my_troops(&c) / 2.0);
-        return;
-    }
     ai_ctx_scan(&c);
-    handle_extension_requests(&c);
+    ai_answer_alliance_asks(&c);
     ai_build_consider_mirv(&c);
     ai_build_handle_structures(&c);
     ai_build_maybe_warship(&c);
@@ -1159,7 +1215,7 @@ void ai_nation_decide(OfeGame *g, PlayerId p) {
 }
 
 void ai_nation_structures_only(OfeGame *g, PlayerId p) {
-    schedule_next(g, p);
+    schedule_after(g, p, g->tick);
     if (!(g->players.ai_state[p][AI_FLAGS] & AIF_FIRST_DONE)) return;
     AiCtx c;
     ai_ctx_begin(&c, g, p);

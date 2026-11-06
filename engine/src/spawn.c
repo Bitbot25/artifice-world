@@ -77,8 +77,11 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     for (int32_t i = 0; i < old_copy.len; i++) tile_set_owner(g, old_copy.data[i], 0);
 
     bool ok = false;
-    if (center >= 0 && center < g->map->num_tiles) ok = spawn_disc(g, center, false, &disc) > 0;
-    if (!ok) {
+    if (center >= g->map->num_tiles) {
+        center = -1;
+    } else if (center >= 0) {
+        ok = spawn_disc(g, center, false, &disc) > 0; /* a chosen spot is never swapped for another */
+    } else {
         center = spawn_random_tile(g, p, &g->rng);
         ok = center >= 0 && spawn_disc(g, center, true, &disc) > 0;
     }
@@ -116,4 +119,5 @@ void spawn_phase_end(OfeGame *g) {
     }
     g->start_tick = g->tick;
     event_emit(g, OFE_EV_SPAWN_PHASE_END, g->tick, 0, 0, 0, 0);
+    ai_on_spawn_phase_end(g);
 }

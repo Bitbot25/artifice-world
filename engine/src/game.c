@@ -203,12 +203,10 @@ OfeGame *ofe_game_create(OfeMap *map, const OfeConfig *config, uint64_t seed) {
     g->sub->doomsday = doomsday_state_new(g);
     g->sub->ai = ai_state_new(g);
 
-    /* Nations spawn on their map spots right away; tribes spread out after. */
-    for (PlayerId p = 1; p < g->players.count; p++) {
-        if (g->players.type[p] != OFE_PLAYER_NATION) continue;
-        spawn_player(g, p, map->nations[g->players.nation_index[p]].tile);
-    }
+    /* Tribes take their spots first, then nations settle near their map spots
+     * (cut short where a tribe is already) and hop around until the phase ends. */
     ai_spawn_tribes(g);
+    ai_spawn_phase_tick(g);
     if (g->spawn_phase_ticks == 0) spawn_phase_end(g);
     return g;
 }
@@ -315,6 +313,7 @@ static void game_tick(OfeGame *g) {
         /* Systems first run on the tick after the phase ends: OpenFront
          * initialises player and attack executions after that tick. */
         if (g->tick > g->spawn_phase_ticks) spawn_phase_end(g);
+        else ai_spawn_phase_tick(g);
     } else {
         players_tick(g); /* growth, alliances, enclaves, deaths */
         attacks_tick(g); /* land fronts */
