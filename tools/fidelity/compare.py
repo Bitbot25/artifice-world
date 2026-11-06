@@ -335,9 +335,6 @@ def sec_attacks(rep: Report, res, cells, title, key, target, intro):
         meta = sc["meta"]
         for metric in ("tiles_t30", "tiles_t100", "tiles_final", "loss", "loss_per_tile", "duration", "done"):
             cvals = cm["c"][metric]
-            if metric == "duration":
-                # C's attack also ticks on the tick it starts, TS's first conquest is the next tick.
-                cvals = [v + 1 for v in cvals]
             cmp_ = compare(cm["ts"][metric], cvals, rel_tol=0.08)
             summary.setdefault(metric, []).append((sc["name"], meta, cmp_))
             if metric in ("tiles_final", "loss"):
@@ -354,8 +351,6 @@ def sec_attacks(rep: Report, res, cells, title, key, target, intro):
             "verdict": "DIFF" if nd > len(lst) / 3 else ("warn" if nd + nw > 0 else "ok"),
             "rel": float(np.median(rels)) if len(rels) else float("nan"),
             "ts": {"mean": 0}, "c": {"mean": 0}, "note": f"{nd} DIFF / {nw} warn of {len(lst)} cells"})
-    rep.add("`duration` compares C+1 tick: in C an attack also conquers on the tick it was issued, in TS the "
-            "first conquest is the next tick (see findings).\n")
     rep.add("Per-metric summary over all cells (relative difference of the C mean to the TS mean):\n")
     rep.add(md_table(["metric", "cells", "median Δ", "p90 |Δ|", "cells DIFF", "cells warn"], srows) + "\n")
 
