@@ -231,7 +231,8 @@ typedef int32_t AiState[8];
     X(int64_t, train_gold)                                                          \
     X(UnitTypeCounts, unit_count) /* alive units by type, incl. construction */     \
     X(UnitTypeCounts, unit_levels) /* summed levels of finished structures */       \
-    X(UnitTypeCounts, units_built) /* finished constructions, for costs */          \
+    X(UnitTypeCounts, units_built) /* units/levels bought, for costs */             \
+    X(UnitTypeCounts, units_constructing) /* structures under construction */      \
     X(uint64_t, ai_rng) /* per-player AI random stream */                           \
     X(int32_t, ai_next_tick) /* next tick the AI acts */                            \
     X(AiState, ai_state) /* AI scratch; ai_*.c owns the meaning */

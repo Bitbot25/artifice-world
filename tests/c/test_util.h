@@ -97,6 +97,7 @@ static void check_invariants(const OfeGame *g) {
      * must match a recount of the unit table. */
     int32_t *ucount = (int32_t *)calloc((size_t)n * OFE_UNIT_TYPE_COUNT, sizeof(int32_t));
     int32_t *ulevels = (int32_t *)calloc((size_t)n * OFE_UNIT_TYPE_COUNT, sizeof(int32_t));
+    int32_t *ubuilding = (int32_t *)calloc((size_t)n * OFE_UNIT_TYPE_COUNT, sizeof(int32_t));
     const UnitTable *u = &g->units;
     int32_t alive = 0;
     for (int32_t i = 0; i < u->count; i++) {
@@ -107,15 +108,18 @@ static void check_invariants(const OfeGame *g) {
         ucount[u->owner[i] * OFE_UNIT_TYPE_COUNT + u->type[i]]++;
         if (unit_is_structure(u->type[i]) && !(u->flags[i] & OFE_UF_UNDER_CONSTRUCTION))
             ulevels[u->owner[i] * OFE_UNIT_TYPE_COUNT + u->type[i]] += u->level[i];
+        if (u->flags[i] & OFE_UF_UNDER_CONSTRUCTION) ubuilding[u->owner[i] * OFE_UNIT_TYPE_COUNT + u->type[i]]++;
     }
     CHECK(alive == u->num_alive);
     for (PlayerId p = 1; p < n; p++) {
         for (int k = 0; k < OFE_UNIT_TYPE_COUNT; k++) {
             CHECK(ucount[p * OFE_UNIT_TYPE_COUNT + k] == g->players.unit_count[p][k]);
             CHECK(ulevels[p * OFE_UNIT_TYPE_COUNT + k] == g->players.unit_levels[p][k]);
+            CHECK(ubuilding[p * OFE_UNIT_TYPE_COUNT + k] == g->players.units_constructing[p][k]);
         }
     }
     free(ucount);
+    free(ubuilding);
     free(ulevels);
     free(count);
     free(borders);

@@ -384,9 +384,8 @@ static UnitId build_structure(OfeGame *g, PlayerId p, int type, TileRef tile) {
     g->players.units_built[p][type]++;
     player_remove_gold(g, p, cost);
 
-    g->units.flags[slot] |= OFE_UF_UNDER_CONSTRUCTION;
     int32_t ticks = g->cfg.instant_build ? 0 : construction_ticks(type);
-    g->units.timer[slot] = g->tick + ticks;
+    unit_begin_construction(g, slot, g->tick + ticks);
     if (ticks == 0) unit_finish_construction(g, slot);
     else IntVec_push(&g->sub->structures->constructing, id);
     return id;

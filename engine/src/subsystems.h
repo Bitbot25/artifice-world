@@ -52,6 +52,8 @@ int32_t unit_lookup(const OfeGame *g, UnitId id);
 static inline UnitId unit_id_of_slot(const OfeGame *g, int32_t slot) {
     return ((int32_t)g->units.generation[slot] << UNIT_SLOT_BITS) | slot;
 }
+/* Puts a new structure under construction until end_tick. */
+void unit_begin_construction(OfeGame *g, int32_t slot, int32_t end_tick);
 /* Marks a structure as finished (counts its level toward unit_levels). */
 void unit_finish_construction(OfeGame *g, int32_t slot);
 void unit_set_level(OfeGame *g, int32_t slot, int level);

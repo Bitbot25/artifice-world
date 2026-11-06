@@ -57,12 +57,9 @@ int32_t ofe_edit_add_unit(OfeGame *g, int32_t type, int32_t owner, int32_t tile,
     if (id < 0) return -2;
     int32_t slot = unit_lookup(g, id);
     if (unit_is_structure(type)) {
-        /* Created finished: its whole level counts toward the owner's
-         * totals (unit_create doesn't count structure levels). */
         int32_t lvl = OFE_CLAMP(level, 1, 255);
         g->players.units_built[owner][type] += lvl;
-        g->units.level[slot] = (uint8_t)lvl;
-        g->players.unit_levels[owner][type] += lvl;
+        unit_set_level(g, slot, lvl);
     }
     if (type == OFE_UNIT_WARSHIP) g->units.health[slot] = 1000;
     if (type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY) rail_on_structure_changed(g, slot);

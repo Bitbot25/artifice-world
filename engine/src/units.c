@@ -98,6 +98,9 @@ UnitId unit_create(OfeGame *g, int type, PlayerId owner, TileRef tile) {
     t->created_tick[slot] = g->tick;
     t->num_alive++;
     g->players.unit_count[owner][type]++;
+    /* Invariant: unit_levels = summed levels of finished structures. A new
+     * structure is finished until unit_begin_construction says otherwise. */
+    if (unit_is_structure(type)) g->players.unit_levels[owner][type] += 1;
     structures_index_add(g, slot);
     UnitId id = unit_id_of_slot(g, slot);
     event_emit(g, OFE_EV_UNIT_CREATED, id, type, owner, tile, 0);
@@ -117,6 +120,7 @@ void unit_destroy(OfeGame *g, UnitId id, PlayerId destroyer) {
     event_emit(g, OFE_EV_UNIT_DESTROYED, id, type, owner, destroyer, 0);
     g->players.unit_count[owner][type]--;
     if (counts_level(g, slot)) g->players.unit_levels[owner][type] -= t->level[slot];
+    if (t->flags[slot] & OFE_UF_UNDER_CONSTRUCTION) g->players.units_constructing[owner][type]--;
     bool rail = type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY;
     structures_index_remove(g, slot);
     t->alive[slot] = 0;
@@ -139,16 +143,31 @@ void unit_capture(OfeGame *g, UnitId id, PlayerId new_owner) {
         g->players.unit_levels[old][type] -= t->level[slot];
         g->players.unit_levels[new_owner][type] += t->level[slot];
     }
+    if (t->flags[slot] & OFE_UF_UNDER_CONSTRUCTION) {
+        g->players.units_constructing[old][type]--;
+        g->players.units_constructing[new_owner][type]++;
+    }
     t->last_owner[slot] = old;
     t->owner[slot] = new_owner;
     event_emit(g, OFE_EV_UNIT_CAPTURED, id, type, old, new_owner, 0);
     if (type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY) rail_on_structure_changed(g, slot);
 }
 
+void unit_begin_construction(OfeGame *g, int32_t slot, int32_t end_tick) {
+    UnitTable *t = &g->units;
+    t->timer[slot] = end_tick;
+    if (t->flags[slot] & OFE_UF_UNDER_CONSTRUCTION) return;
+    /* Levels count only for finished structures. */
+    if (counts_level(g, slot)) g->players.unit_levels[t->owner[slot]][t->type[slot]] -= t->level[slot];
+    t->flags[slot] |= OFE_UF_UNDER_CONSTRUCTION;
+    g->players.units_constructing[t->owner[slot]][t->type[slot]]++;
+}
+
 void unit_finish_construction(OfeGame *g, int32_t slot) {
     UnitTable *t = &g->units;
     if (!(t->flags[slot] & OFE_UF_UNDER_CONSTRUCTION)) return;
     t->flags[slot] &= (uint8_t)~OFE_UF_UNDER_CONSTRUCTION;
+    g->players.units_constructing[t->owner[slot]][t->type[slot]]--;
     if (unit_is_structure(t->type[slot])) g->players.unit_levels[t->owner[slot]][t->type[slot]] += t->level[slot];
     int type = t->type[slot];
     if (type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY) rail_on_structure_changed(g, slot);
@@ -165,15 +184,13 @@ void unit_move(OfeGame *g, int32_t slot, TileRef tile) { g->units.tile[slot] = t
 /* ---- Costs -------------------------------------------------------------------- */
 
 /* OpenFront counts min(owned, constructed) per type, where owned counts a
- * finished structure's level and 1 for one under construction. */
+ * finished structure's level and 1 for one under construction (a unit that
+ * isn't a structure counts 1). O(1) from the per-player counters. */
 static int32_t cost_count(const OfeGame *g, PlayerId p, int type) {
-    const UnitTable *t = &g->units;
-    int32_t owned = 0;
-    for (int32_t i = 0; i < t->count; i++) {
-        if (!t->alive[i] || t->owner[i] != p || t->type[i] != type) continue;
-        owned += (t->flags[i] & OFE_UF_UNDER_CONSTRUCTION) ? 1 : t->level[i];
-    }
-    return OFE_MIN(owned, g->players.units_built[p][type]);
+    const PlayerTable *pl = &g->players;
+    int32_t owned = unit_is_structure(type) ? pl->unit_levels[p][type] + pl->units_constructing[p][type]
+                                            : pl->unit_count[p][type];
+    return OFE_MIN(owned, pl->units_built[p][type]);
 }
 
 static int64_t doubling_cost(int32_t n) {
