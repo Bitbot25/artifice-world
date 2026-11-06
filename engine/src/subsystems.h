@@ -91,6 +91,14 @@ UnitId structures_build(OfeGame *g, PlayerId p, int type, TileRef tile, int32_t 
 bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount);
 bool structures_delete(OfeGame *g, PlayerId p, UnitId id);
 
+/* Spatial index of structures. unit_create / unit_destroy call the first two
+ * (they ignore other unit types); units_has_nearby / units_nearby use the
+ * queries for structure types. Same semantics as the units.c versions. */
+void structures_index_add(OfeGame *g, int32_t slot);
+void structures_index_remove(OfeGame *g, int32_t slot);
+bool structures_has_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner);
+int32_t structures_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner, int32_t *out_slots, int32_t cap);
+
 /* ------------------------------------------------------------------------ */
 /* Ships (ships.c): water pathfinding, transport ships, trade ships,         */
 /* warships and their shells                                                 */
@@ -126,6 +134,19 @@ void nukes_tick(OfeGame *g);
 /* Launches from silo src_slot (or -1 = pick a ready silo). Charges gold
  * unless free=true. Returns the nuke id or -1. */
 UnitId nukes_launch(OfeGame *g, PlayerId p, int type, TileRef target, int32_t src_slot, bool rocket_up, bool free_launch);
+/* Could p launch this nuke type at target right now (ready silo, target
+ * rules, not disabled)? Gold is not checked. */
+bool nukes_can_launch(const OfeGame *g, PlayerId p, int type, TileRef target);
+/* Slot of p's ready (finished, missile available) silo nearest to target, or -1. */
+int32_t nukes_pick_silo(const OfeGame *g, PlayerId p, TileRef target);
+/* Cancels in-flight nukes between two players who just became allies
+ * (AllianceRequestExecution.cancelNukesBetweenAlliedPlayers). Call from
+ * alliance_form. */
+void nukes_cancel_between(OfeGame *g, PlayerId a, PlayerId b);
+/* A silo or SAM launcher just gained a level (call after unit_set_level):
+ * the new missile starts reloading and a SAM's range ramps up over 45
+ * ticks. Silos and SAMs keep the number of missiles reloading in aux0. */
+void nukes_on_level_up(OfeGame *g, int32_t slot);
 
 /* ------------------------------------------------------------------------ */
 /* Rail (rail.c): factories, train stations, railroads, trains               */
@@ -138,6 +159,14 @@ void rail_tick(OfeGame *g);
 /* A city, port or factory finished construction / was destroyed / changed
  * owner: (re)connect it to the rail network. */
 void rail_on_structure_changed(OfeGame *g, int32_t slot);
+/* Inspection (tests, feature extraction). */
+int32_t rail_station_count(const OfeGame *g);
+int32_t rail_edge_count(const OfeGame *g); /* railroads (undirected) */
+/* Owner of the station on unit `id` (read live from the unit), -1 if the unit
+ * is not a station. */
+int32_t rail_station_owner(const OfeGame *g, UnitId id);
+/* Are the two units' stations joined by railroads (any number of hops)? */
+bool rail_connected(const OfeGame *g, UnitId a, UnitId b);
 
 /* ------------------------------------------------------------------------ */
 /* Doomsday clock (doomsday.c)                                               */

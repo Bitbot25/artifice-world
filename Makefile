@@ -11,8 +11,8 @@
 CC      ?= cc
 BUILD   ?= build
 CFLAGS  ?= -O3 -march=native
-CFLAGS  += -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Wno-unused-parameter -fPIC -fopenmp -Iengine/include
-LDFLAGS += -fopenmp -lm -lpthread
+override CFLAGS += -std=c99 -D_DEFAULT_SOURCE -Wall -Wextra -Wno-unused-parameter -fPIC -fopenmp -Iengine/include
+override LDFLAGS += -fopenmp -lm -lpthread
 
 SRC  := $(wildcard engine/src/*.c)
 OBJ  := $(patsubst engine/src/%.c,$(BUILD)/obj/%.o,$(SRC))
@@ -32,7 +32,7 @@ $(BUILD)/libofe.so: $(OBJ)
 	$(CC) -shared -o $@ $^ $(LDFLAGS)
 
 $(BUILD)/libofe.a: $(OBJ)
-	ar rcs $@ $^
+	rm -f $@ && ar rcs $@ $^
 
 # Every tests/c/test_*.c is its own test binary.
 CTESTS := $(patsubst tests/c/%.c,$(BUILD)/tests/%,$(wildcard tests/c/test_*.c))
