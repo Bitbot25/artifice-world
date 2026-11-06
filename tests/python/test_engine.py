@@ -70,7 +70,8 @@ def test_attack_and_events(world):
     assert ae.EVENT["attack_started"] in types
     assert ae.EVENT["tile_owner"] in types
     flips = ev[ev["type"] == ae.EVENT["tile_owner"]]
-    assert (flips["c"] == 1).all()
+    mine = flips[flips["c"] == 1]  # nations expand too
+    assert len(mine) > 0 and (mine["b"] != 1).all()
 
 
 def test_clone_restore_determinism(world):
