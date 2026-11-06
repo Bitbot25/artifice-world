@@ -191,7 +191,8 @@ void tiles_share(TileStore *dst, const TileStore *src); /* dst must be empty */
 #define GROW_COLUMN(type, name)                                                     \
     t->name = (type *)ofe_xrealloc(t->name, (size_t)cap * sizeof(type));             \
     memset(t->name + t->cap, 0, (size_t)(cap - t->cap) * sizeof(type));
-#define COPY_COLUMN(type, name) memcpy(dst->name, src->name, (size_t)src->cap * sizeof(type));
+#define COPY_COLUMN(type, name) \
+    if (src->cap) memcpy(dst->name, src->name, (size_t)src->cap * sizeof(type));
 #define FREE_COLUMN(type, name) free(t->name);
 #define HASH_COLUMN(type, name) h = hash_bytes(h, t->name, (size_t)t->count * sizeof(type));
 

@@ -249,6 +249,8 @@ void alliance_form(OfeGame *g, PlayerId a, PlayerId b, int32_t duration) {
     if (player_allied(g, a, b)) return;
     Alliance al = {a, b, g->tick, g->tick + (duration > 0 ? duration : alliance_duration(g)), 0, 0};
     AllianceVec_push(&g->alliances, al);
+    /* New allies' nukes in flight at each other are called off. */
+    nukes_cancel_between(g, a, b);
     /* Pending requests between the two are settled. */
     int32_t i;
     if ((i = request_find(g, a, b)) >= 0) request_remove(g, i);
@@ -411,9 +413,20 @@ void player_conquered(OfeGame *g, PlayerId conqueror, PlayerId conquered) {
 
 /* ---- Per-tick update -------------------------------------------------------- */
 
+static bool is_nuke(int type) {
+    return type == OFE_UNIT_ATOM_BOMB || type == OFE_UNIT_HYDROGEN_BOMB || type == OFE_UNIT_MIRV ||
+           type == OFE_UNIT_MIRV_WARHEAD;
+}
+
 static void player_died(OfeGame *g, PlayerId p) {
     PlayerTable *pl = &g->players;
     pl->dead[p] = 1;
+    /* A dead player keeps nothing but the nukes already in flight. */
+    pl->gold[p] = 0;
+    UnitTable *u = &g->units;
+    for (int32_t i = 0; i < u->count; i++) {
+        if (u->alive[i] && u->owner[i] == p && !is_nuke(u->type[i])) unit_destroy(g, unit_id_of_slot(g, i), 0);
+    }
     /* Alliances and requests involving the dead player vanish silently. */
     for (int32_t i = g->alliances.len - 1; i >= 0; i--) {
         Alliance *al = &g->alliances.data[i];

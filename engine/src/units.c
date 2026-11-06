@@ -98,6 +98,7 @@ UnitId unit_create(OfeGame *g, int type, PlayerId owner, TileRef tile) {
     t->created_tick[slot] = g->tick;
     t->num_alive++;
     g->players.unit_count[owner][type]++;
+    structures_index_add(g, slot);
     UnitId id = unit_id_of_slot(g, slot);
     event_emit(g, OFE_EV_UNIT_CREATED, id, type, owner, tile, 0);
     return id;
@@ -117,6 +118,7 @@ void unit_destroy(OfeGame *g, UnitId id, PlayerId destroyer) {
     g->players.unit_count[owner][type]--;
     if (counts_level(g, slot)) g->players.unit_levels[owner][type] -= t->level[slot];
     bool rail = type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY;
+    structures_index_remove(g, slot);
     t->alive[slot] = 0;
     t->num_alive--;
     t->path[slot].len = 0;
@@ -200,6 +202,7 @@ int64_t unit_cost(const OfeGame *g, PlayerId p, int type) {
 /* ---- Spatial queries ------------------------------------------------------------- */
 
 bool units_has_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner) {
+    if (unit_is_structure(type)) return structures_has_nearby(g, tile, range, type, owner);
     const UnitTable *t = &g->units;
     int64_t r2 = (int64_t)range * range;
     for (int32_t i = 0; i < t->count; i++) {
@@ -212,6 +215,7 @@ bool units_has_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, P
 }
 
 int32_t units_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner, int32_t *out, int32_t cap) {
+    if (type >= 0 && unit_is_structure(type)) return structures_nearby(g, tile, range, type, owner, out, cap);
     const UnitTable *t = &g->units;
     int64_t r2 = (int64_t)range * range;
     int32_t n = 0;

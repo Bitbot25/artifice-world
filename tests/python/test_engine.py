@@ -125,3 +125,20 @@ def test_real_map():
     g = ae.Game(m, ae.make_config(spawn_phase_ticks=10, event_mask=ae.EVENTS_NO_TILES), seed=0)
     g.step(300)
     assert g.players()["num_tiles"].sum() > 0
+
+
+def test_vec_games(world):
+    from artifice_engine.vec import VecGames
+
+    envs = VecGames(world, cfg(), seeds=range(4), cadence=20)
+    for _ in range(10):
+        done = envs.step({0: [{"type": "attack", "player": 1, "target": 0, "troops": -1}]})
+    assert done.shape == (4,)
+    obs = envs.observe(owner_maps=True, events=True)
+    assert obs["players"].shape[0] == 4
+    assert obs["owners"].shape == (4, world.height, world.width)
+    assert (obs["tick"] == 200).all()
+    twin = envs.clone()
+    envs.step()
+    twin.step()
+    assert [g.hash() for g in envs.games] == [g.hash() for g in twin.games]
