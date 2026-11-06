@@ -80,6 +80,8 @@ def make_config(**overrides) -> Config:
     for key, value in overrides.items():
         if key == "disabled_units" and not isinstance(value, int):
             value = sum(1 << UNIT[name] for name in value)
+        if key == "game_id" and isinstance(value, str):
+            value = value.encode()
         if not hasattr(cfg, key):
             raise KeyError(f"unknown config field {key!r}")
         setattr(cfg, key, value)

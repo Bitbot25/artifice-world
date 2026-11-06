@@ -5,6 +5,8 @@
 #   make test       C unit tests + Python tests
 #   make bench      throughput benchmark
 #   make debug      -O0 -g with sanitizers
+#   make parity     TS-parity build (-DOFE_TS_PARITY=1) in build-parity/;
+#                   see docs/ts_parity.md
 #
 # Every engine/src/*.c is compiled; adding a module needs no Makefile edit.
 
@@ -18,7 +20,7 @@ SRC  := $(wildcard engine/src/*.c)
 OBJ  := $(patsubst engine/src/%.c,$(BUILD)/obj/%.o,$(SRC))
 DEPS := $(OBJ:.o=.d)
 
-.PHONY: all clean test bench debug ctest pytest
+.PHONY: all clean test bench debug ctest pytest parity parity-check
 
 all: $(BUILD)/libofe.so $(BUILD)/libofe.a
 
@@ -59,7 +61,17 @@ debug:
 	$(MAKE) BUILD=build-debug CFLAGS="-O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer" \
 	        LDFLAGS="-fsanitize=address,undefined" all ctest
 
+# The TS-parity build: same sources, OFE_TS_PARITY switches on the code paths
+# that reproduce OpenFront's observable behaviour exactly.
+parity:
+	$(MAKE) BUILD=build-parity CFLAGS="$(CFLAGS) -DOFE_TS_PARITY=1" all
+
+# Lockstep comparison with the TS engine over every parity scenario
+# (needs OPENFRONT_DIR, see tools/parity/README.md).
+parity-check: parity
+	@for s in tools/parity/scenarios/*.json; do python3 tools/parity/diff.py $$s || exit 1; done
+
 clean:
-	rm -rf build build-debug
+	rm -rf build build-debug build-parity
 
 -include $(DEPS)

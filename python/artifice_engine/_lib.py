@@ -162,7 +162,8 @@ class Config(C.Structure):
         ("gold_multiplier", f64),
         ("event_mask", u32),
         ("humans_use_ai", i32),
-        ("reserved", i32 * 8),
+        ("game_id", C.c_char * 24),
+        ("reserved", i32 * 2),
     ]
 
 
