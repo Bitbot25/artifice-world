@@ -618,9 +618,30 @@ def sec_boats(rep: Report, res, cells):
                                               "note": "C has no ships yet"})
     else:
         d, t = np.array(pts["c"]).T
-        slope = float((d * t).sum() / (d * d).sum())
-        rep.add(f"C: travel ticks ≈ {slope:.2f} × straight-line distance.\n")
-        rep.flag("boats", "boat travel time", {"verdict": "ok", "rel": 0.0, "ts": {"mean": 0}, "c": {"mean": 0}})
+        slope_c = float((d * t).sum() / (d * d).sum())
+        rep.add(f"C: travel ticks ≈ {slope_c:.2f} × straight-line distance.\n")
+        # Per route (same scenario on both engines): ratio of mean travel ticks.
+        ratios, missing = [], []
+        for sc in cells:
+            r = res[sc["name"]]
+            t = [x["t1"] - x["t0"] for x in r.get("ts", []) if x["ev"] == "boat" and x["arrived"]]
+            cc = [x["t1"] - x["t0"] for x in r.get("c", []) if x["ev"] == "boat" and x["arrived"]]
+            if t and cc:
+                ratios.append(np.mean(cc) / np.mean(t))
+            elif t:
+                missing.append(sc["name"])
+        if ratios:
+            rel = float(np.mean(ratios)) - 1.0
+            rep.add(f"Per-route C/TS travel-time ratio over {len(ratios)} routes: mean {np.mean(ratios):.3f}, "
+                    f"min {np.min(ratios):.3f}, max {np.max(ratios):.3f}.\n")
+            verdict = "DIFF" if abs(rel) > 0.15 else ("warn" if abs(rel) > 0.05 else "ok")
+            rep.flag("boats", "boat travel time (per-route C/TS ratio)",
+                     {"ts": {"mean": 1.0}, "c": {"mean": float(np.mean(ratios))}, "rel": rel, "verdict": verdict})
+        if missing:
+            rep.add(f"Routes where TS landed but C did not: {', '.join(missing)}.\n")
+            rep.flag("boats", "routes TS lands but C does not",
+                     {"verdict": "DIFF", "rel": len(missing) / len(cells), "ts": {"mean": 0}, "c": {"mean": 0},
+                      "note": f"{len(missing)} of {len(cells)}"})
     plt = plt_or_none()
     if plt and pts["ts"]:
         fig, ax = plt.subplots(figsize=(4.5, 3.4))

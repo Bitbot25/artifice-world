@@ -155,7 +155,8 @@ static void test_boat_attack(OfeMap *m) {
     int32_t b = first_unit(g, OFE_UNIT_TRANSPORT_SHIP);
     CHECK(b >= 0);
     if (b >= 0) {
-        CHECK(g->units.troops[b] > 15000 && g->units.troops[b] <= troops_before / 5);
+        /* Launched at the end of the tick, after this tick's growth. */
+        CHECK(g->units.troops[b] > 15000 && g->units.troops[b] <= (troops_before + 2000) / 5);
         CHECK(g->players.troops[1] < troops_before - 15000 + 2000); /* taken at launch (growth is small) */
         CHECK(g->units.path[b].len >= 62 && g->units.path[b].len <= 80);
     }
