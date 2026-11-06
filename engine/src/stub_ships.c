@@ -21,3 +21,7 @@ bool ships_move_warship(OfeGame *g, PlayerId p, UnitId id, TileRef tile) {
 }
 int32_t ships_water_component(OfeGame *g, TileRef tile) { OFE_UNUSED(g); OFE_UNUSED(tile); return -1; }
 TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst) { OFE_UNUSED(g); OFE_UNUSED(p); OFE_UNUSED(dst); return -1; }
+UnitId ships_fire_shell(OfeGame *g, PlayerId owner, TileRef from, int32_t target_slot, int32_t damage) {
+    OFE_UNUSED(g); OFE_UNUSED(owner); OFE_UNUSED(from); OFE_UNUSED(target_slot); OFE_UNUSED(damage);
+    return -1;
+}

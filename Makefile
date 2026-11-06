@@ -34,14 +34,18 @@ $(BUILD)/libofe.so: $(OBJ)
 $(BUILD)/libofe.a: $(OBJ)
 	ar rcs $@ $^
 
-$(BUILD)/test_engine: tests/c/test_engine.c $(BUILD)/libofe.a
+# Every tests/c/test_*.c is its own test binary.
+CTESTS := $(patsubst tests/c/%.c,$(BUILD)/tests/%,$(wildcard tests/c/test_*.c))
+
+$(BUILD)/tests/%: tests/c/%.c tests/c/test_util.h $(BUILD)/libofe.a
+	@mkdir -p $(BUILD)/tests
 	$(CC) $(CFLAGS) -o $@ $< $(BUILD)/libofe.a $(LDFLAGS)
 
 $(BUILD)/bench: tools/bench.c $(BUILD)/libofe.a
 	$(CC) $(CFLAGS) -o $@ $< $(BUILD)/libofe.a $(LDFLAGS)
 
-ctest: $(BUILD)/test_engine
-	$(BUILD)/test_engine
+ctest: $(CTESTS)
+	@for t in $(CTESTS); do echo "== $$t"; $$t || exit 1; done
 
 pytest: $(BUILD)/libofe.so
 	python3 -m pytest -q tests/python
@@ -53,7 +57,7 @@ bench: $(BUILD)/bench
 
 debug:
 	$(MAKE) BUILD=build-debug CFLAGS="-O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer" \
-	        LDFLAGS="-fsanitize=address,undefined" all build-debug/test_engine
+	        LDFLAGS="-fsanitize=address,undefined" all ctest
 
 clean:
 	rm -rf build build-debug

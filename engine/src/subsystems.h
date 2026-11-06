@@ -111,6 +111,9 @@ bool ships_move_warship(OfeGame *g, PlayerId p, UnitId id, TileRef tile);
 int32_t ships_water_component(OfeGame *g, TileRef tile);
 /* Shore tile of p from which a boat could reach dst, or -1. */
 TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst);
+/* Fires a shell from `from` at the unit in target_slot (warships and
+ * defense posts use it). Returns the shell id or -1. */
+UnitId ships_fire_shell(OfeGame *g, PlayerId owner, TileRef from, int32_t target_slot, int32_t damage);
 
 /* ------------------------------------------------------------------------ */
 /* Nukes (nukes.c): atom / hydrogen bombs, MIRVs and warheads, SAMs          */
