@@ -311,8 +311,9 @@ OfeGame *ofe_game_clone(const OfeGame *game);
  * much. */
 void ofe_game_copy_into(OfeGame *dst, const OfeGame *src);
 
-/* Queues intents. They take effect at the start of the next tick. Returns the
- * number accepted (malformed intents are dropped). */
+/* Queues intents. They take effect at the end of the next tick (like
+ * OpenFront's executions), so e.g. an attack first conquers one tick later.
+ * Returns the number accepted (malformed intents are dropped). */
 int32_t ofe_game_push_intents(OfeGame *game, const OfeIntent *intents, int32_t count);
 
 /* Runs up to `ticks` ticks; stops early when the game ends. Returns the number

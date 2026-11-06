@@ -190,7 +190,7 @@ static void test_placement_rules(OfeMap *m) {
     ofe_edit_set_gold(g, 1, 100000000);
     CHECK(game_in_spawn_phase(g));
     CHECK(structures_can_build(g, 1, OFE_UNIT_CITY, mine) == -1);
-    ofe_game_step(g, 21);
+    ofe_game_step(g, 22); /* the phase ends during tick 21 (tick > 20), as in OpenFront */
     CHECK(structures_can_build(g, 1, OFE_UNIT_CITY, mine) == mine);
     ofe_game_destroy(g);
 }

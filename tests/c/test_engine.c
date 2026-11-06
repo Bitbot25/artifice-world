@@ -147,6 +147,9 @@ static void test_enclave_annexation(OfeMap *m) {
     c.num_bots = 0;
     c.num_nations = 0;
     c.spawn_phase_ticks = 0;
+    /* Territory comes from edits only. (A spawned player's enclave check is
+     * staggered and only runs after a later tile change, as in OpenFront.) */
+    c.auto_spawn_humans = 0;
     OfeGame *g = ofe_game_create(m, &c, 5);
     for (int y = 20; y < 60; y++)
         for (int x = 50; x < 90; x++) ofe_edit_set_owner(g, map_ref(m, x, y), 1);

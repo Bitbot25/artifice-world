@@ -1,8 +1,8 @@
 /*
  * intent.c - the intent queue: what agents (and built-in AIs) ask for.
  *
- * Intents pushed between ticks are applied at the start of the next tick,
- * in the order pushed. During the spawn phase only spawn intents run; the
+ * Intents pushed between ticks are applied at the end of the next tick, in
+ * the order pushed (see game_tick). During the spawn phase only spawn intents run; the
  * rest wait until the phase ends (like OpenFront's uninitialised
  * executions). Each intent is validated here or by the module it calls, so
  * a malformed intent is a no-op.
@@ -25,8 +25,9 @@ int32_t ofe_game_push_intents(OfeGame *g, const OfeIntent *intents, int32_t coun
 }
 
 void game_issue(OfeGame *g, const OfeIntent *in) {
-    /* AI actions take effect immediately: the AI runs at the end of the
-     * tick, so this matches an agent intent applied at the next tick start. */
+    /* AI actions take effect immediately: the AI runs after every other
+     * system this tick, so this matches an agent intent applied at the end
+     * of the tick. */
     if (player_valid(g, in->player)) intent_apply_one(g, in);
 }
 

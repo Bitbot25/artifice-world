@@ -305,19 +305,22 @@ OfeGame *ofe_game_clone(const OfeGame *src) {
 /* Tick loop                                                                 */
 /* ======================================================================== */
 
+/* One tick, in OpenFront's order: the spawn timer, then every running
+ * system, then new actions. Intents (and AI actions) take effect at the end
+ * of the tick, so a new attack first conquers on the next tick and troop
+ * growth happens before an attack's troops are taken, as in OpenFront,
+ * where executions created during a tick are initialised after it. */
 static void game_tick(OfeGame *g) {
-    intents_apply(g);
-    if (g->start_tick < 0) {
-        if (g->tick >= g->spawn_phase_ticks) spawn_phase_end(g);
-        g->tick++;
-        return;
+    if (g->start_tick < 0 && g->tick > g->spawn_phase_ticks) spawn_phase_end(g);
+    if (g->start_tick >= 0) {
+        players_tick(g); /* growth, alliances, enclaves, deaths */
+        attacks_tick(g); /* land fronts */
+        units_tick(g); /* structures, ships, nukes, rail */
+        doomsday_tick(g);
+        ai_tick(g); /* nations and tribes act through game_issue */
+        win_check(g);
     }
-    players_tick(g); /* growth, alliances, enclaves, deaths */
-    attacks_tick(g); /* land fronts */
-    units_tick(g); /* structures, ships, nukes, rail */
-    doomsday_tick(g);
-    ai_tick(g); /* nations and tribes act for the next tick */
-    win_check(g);
+    intents_apply(g);
     g->tick++;
 }
 

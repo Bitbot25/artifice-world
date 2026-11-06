@@ -91,6 +91,11 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     }
     for (int32_t i = 0; i < disc.len; i++) tile_set_owner(g, disc.data[i], p);
     bool first = !pl->spawned[p];
+    if (first) {
+        /* Stagger enclave checks across players like OpenFront (which
+         * offsets each player's 20-tick cycle by a hash of its id). */
+        pl->cluster_calc_tick[p] = g->tick + (int32_t)(((uint32_t)p * 2654435761u) >> 16) % 20;
+    }
     pl->spawned[p] = 1;
     pl->dead[p] = 0;
     pl->spawn_tile[p] = center;
