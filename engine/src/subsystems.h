@@ -126,6 +126,19 @@ void nukes_tick(OfeGame *g);
 /* Launches from silo src_slot (or -1 = pick a ready silo). Charges gold
  * unless free=true. Returns the nuke id or -1. */
 UnitId nukes_launch(OfeGame *g, PlayerId p, int type, TileRef target, int32_t src_slot, bool rocket_up, bool free_launch);
+/* Could p launch this nuke type at target right now (ready silo, target
+ * rules, not disabled)? Gold is not checked. */
+bool nukes_can_launch(const OfeGame *g, PlayerId p, int type, TileRef target);
+/* Slot of p's ready (finished, missile available) silo nearest to target, or -1. */
+int32_t nukes_pick_silo(const OfeGame *g, PlayerId p, TileRef target);
+/* Cancels in-flight nukes between two players who just became allies
+ * (AllianceRequestExecution.cancelNukesBetweenAlliedPlayers). Call from
+ * alliance_form. */
+void nukes_cancel_between(OfeGame *g, PlayerId a, PlayerId b);
+/* A silo or SAM launcher just gained a level (call after unit_set_level):
+ * the new missile starts reloading and a SAM's range ramps up over 45
+ * ticks. Silos and SAMs keep the number of missiles reloading in aux0. */
+void nukes_on_level_up(OfeGame *g, int32_t slot);
 
 /* ------------------------------------------------------------------------ */
 /* Rail (rail.c): factories, train stations, railroads, trains               */
