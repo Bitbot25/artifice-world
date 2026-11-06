@@ -772,7 +772,8 @@ static bool attack_bots(AiCtx *c) {
         bots[j + 1] = x;
         key[j + 1] = kx;
     }
-    int32_t limit = OFE_MIN(n, bot_parallelism(c));
+    int32_t parallel = bot_parallelism(c);
+    int32_t limit = OFE_MIN(n, parallel);
     for (int32_t i = 0; i < limit; i++) send_attack(c, bots[i], false);
     if (c->bot_troops_sent > 0) return true;
     if (hard_or_impossible(c)) { /* only top-ups: running attacks count */
