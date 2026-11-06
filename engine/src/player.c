@@ -411,9 +411,20 @@ void player_conquered(OfeGame *g, PlayerId conqueror, PlayerId conquered) {
 
 /* ---- Per-tick update -------------------------------------------------------- */
 
+static bool is_nuke(int type) {
+    return type == OFE_UNIT_ATOM_BOMB || type == OFE_UNIT_HYDROGEN_BOMB || type == OFE_UNIT_MIRV ||
+           type == OFE_UNIT_MIRV_WARHEAD;
+}
+
 static void player_died(OfeGame *g, PlayerId p) {
     PlayerTable *pl = &g->players;
     pl->dead[p] = 1;
+    /* A dead player keeps nothing but the nukes already in flight. */
+    pl->gold[p] = 0;
+    UnitTable *u = &g->units;
+    for (int32_t i = 0; i < u->count; i++) {
+        if (u->alive[i] && u->owner[i] == p && !is_nuke(u->type[i])) unit_destroy(g, unit_id_of_slot(g, i), 0);
+    }
     /* Alliances and requests involving the dead player vanish silently. */
     for (int32_t i = g->alliances.len - 1; i >= 0; i--) {
         Alliance *al = &g->alliances.data[i];
