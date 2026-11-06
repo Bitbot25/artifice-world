@@ -249,6 +249,8 @@ void alliance_form(OfeGame *g, PlayerId a, PlayerId b, int32_t duration) {
     if (player_allied(g, a, b)) return;
     Alliance al = {a, b, g->tick, g->tick + (duration > 0 ? duration : alliance_duration(g)), 0, 0};
     AllianceVec_push(&g->alliances, al);
+    /* New allies' nukes in flight at each other are called off. */
+    nukes_cancel_between(g, a, b);
     /* Pending requests between the two are settled. */
     int32_t i;
     if ((i = request_find(g, a, b)) >= 0) request_remove(g, i);

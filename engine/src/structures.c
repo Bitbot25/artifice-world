@@ -435,6 +435,8 @@ bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount) {
         player_remove_gold(g, p, cost);
         unit_set_level(g, slot, g->units.level[slot] + 1);
         g->players.units_built[p][type]++;
+        /* New silo missiles start reloading; SAM range ramps up. */
+        if (type == OFE_UNIT_MISSILE_SILO || type == OFE_UNIT_SAM_LAUNCHER) nukes_on_level_up(g, slot);
         any = true;
     }
     return any;
