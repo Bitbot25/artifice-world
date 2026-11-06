@@ -1,5 +1,6 @@
 build/
 build-debug/
+build-*/
 third_party/
 __pycache__/
 *.pyc
@@ -7,3 +8,4 @@ __pycache__/
 *.so
 *.o
 cache/
+.claude/
