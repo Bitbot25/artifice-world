@@ -407,6 +407,8 @@ async function runOne(sc0: Scenario, seed: number, mods: any) {
         let troops = it.troops ?? null;
         if (it.frac != null) troops = Math.floor(me.troops() * it.frac);
         out.push({ type: "boat", dst: tileOf(it.x, it.y), troops, clientID });
+      } else if (it.type === "build") {
+        out.push({ type: "build_unit", unit: UnitType[it.unit], tile: tileOf(it.x, it.y), clientID });
       } else if (it.type === "cancel_attack") {
         const a = me.outgoingAttacks()[0];
         if (a) out.push({ type: "cancel_attack", attackID: a.id(), clientID });

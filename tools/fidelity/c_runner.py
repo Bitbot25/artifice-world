@@ -222,6 +222,10 @@ def run_one(sc: dict, seed: int, emit, maps_dir: Path) -> None:
                 out.append(game.intent("attack", player=me, target=parse_target(it.get("target", 0)), troops=troops))
             elif it["type"] == "boat":
                 out.append(game.intent("boat_attack", player=me, tile=m.tile(it["x"], it["y"]), troops=troops))
+            elif it["type"] == "build":
+                import re
+                name = re.sub(r"(?<!^)(?=[A-Z])", "_", it["unit"]).lower()
+                out.append(game.intent("build_unit", player=me, unit_type=name, tile=m.tile(it["x"], it["y"])))
             elif it["type"] == "cancel_attack":
                 atk = game.attacks()
                 atk = atk[atk["attacker"] == me]

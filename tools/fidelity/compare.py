@@ -33,8 +33,9 @@ import artifice_engine as ae  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "out"
+IMG = HERE / "img"
 
-SECTIONS = ["idle", "expand", "tn", "pvp", "conquer", "enclave", "spawn", "ai", "boats"]
+SECTIONS = ["idle", "expand", "tn", "pvp", "conquer", "struct", "enclave", "spawn", "ai", "boats"]
 
 
 # ---------------------------------------------------------------------------
@@ -183,11 +184,12 @@ def plt_or_none():
 
 
 def save_fig(plt, fig, name, rep: Report):
-    p = OUT / f"{name}.png"
+    IMG.mkdir(exist_ok=True)
+    p = IMG / f"{name}.png"
     fig.savefig(p, dpi=110, bbox_inches="tight")
     plt.close(fig)
     rep.images.append(name)
-    return f"![{name}](out/{name}.png)"
+    return f"![{name}](img/{name}.png)"
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +414,38 @@ def sec_conquer(rep: Report, res, cells):
             cmp_ = compare(vals["ts"][metric], vals["c"][metric], 0.03)
             rows.append(row_for(f"{sc['name']} {metric}", cmp_))
             rep.flag("conquer", f"{sc['name']} {metric}", cmp_)
+    rep.add(md_table(CMP_HEAD, rows) + "\n")
+
+
+def sec_struct(rep: Report, res, cells):
+    rep.add("## 4c. Structures\n")
+    rep.add("City: a 1250-tile player (200k troops, 2M gold) builds a city at tick 0; troop cap/curve compared with "
+            "an identical player without one. Defense post: the defender builds one next to the border before a "
+            "15k-troop attack (tick 150); tiles gained at the end of 500 ticks.\n")
+    by = {sc["name"]: sc for sc in cells}
+
+    def col(name, eng, t, idx, pid=1):
+        smp = samples(res[name][eng])
+        return [r[idx] for s in by[name]["seeds"] if s in smp and (r := player_at(smp, s, t, pid))]
+    rows = []
+    for name in ("struct_city", "struct_nocity"):
+        for t in (300, 900, 1500):
+            for label, idx in (("troops", 3), ("gold", 4)):
+                cmp_ = compare(col(name, "ts", t, idx), col(name, "c", t, idx), 0.03)
+                rows.append(row_for(f"{name} {label} @ t={t}", cmp_))
+                rep.flag("struct", f"{name} {label} @ t={t}", cmp_)
+    for name in ("struct_nopost", "struct_post"):
+        def gain(eng):
+            smp = samples(res[name][eng])
+            out = []
+            for s in by[name]["seeds"]:
+                if s in smp:
+                    tl = sorted(smp[s])
+                    out.append(player_at(smp, s, tl[-1], 1)[2] - player_at(smp, s, 0, 1)[2])
+            return out
+        cmp_ = compare(gain("ts"), gain("c"), 0.05)
+        rows.append(row_for(f"{name} attacker tiles gained", cmp_))
+        rep.flag("struct", f"{name} tiles gained", cmp_)
     rep.add(md_table(CMP_HEAD, rows) + "\n")
 
 
@@ -641,6 +675,8 @@ def main():
         plan["pvp"] = S.pvp_cells(arenas, seeds[: max(8, args.seeds // 2)])
     if "conquer" in only:
         plan["conquer"] = S.conquer_cells(arenas, seeds[:8])
+    if "struct" in only:
+        plan["struct"] = S.structure_cells(arenas, seeds[:8])
     if "enclave" in only:
         plan["enclave"] = S.enclave_cells(arenas, seeds[:6])
     if "spawn" in only:
@@ -671,6 +707,8 @@ def main():
                     "troops) with 3k / 10k / 30k troops, on three terrain types, after the 50-tick spawn immunity.")
     if "conquer" in plan:
         sec_conquer(rep, res, plan["conquer"])
+    if "struct" in plan:
+        sec_struct(rep, res, plan["struct"])
     if "enclave" in plan:
         sec_enclave(rep, res, plan["enclave"])
     if "spawn" in plan:

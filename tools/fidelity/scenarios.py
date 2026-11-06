@@ -161,6 +161,38 @@ def conquer_cells(arenas: Arenas, seeds):
     return cells
 
 
+def structure_cells(arenas: Arenas, seeds):
+    """City (max-troops bonus) and defense post (attack resistance)."""
+    ax, ay, pur = arenas.find("plains", 100 + 2 * J, 70 + 2 * J)
+    ax, ay = ax + J, ay + J
+    cells = []
+    sc = _base("struct_city", seeds, 1500, humans=1, spawns={"1": [ax + 50, ay + 35]}, sample_every=50,
+               jitter=jitter(seeds))
+    sc["setup"] = [{"op": "clear", "player": "all"}, {"op": "claim", "player": 1, "shape": "disc", "cx": ax + 50,
+                                                      "cy": ay + 35, "r": 25},
+                   {"op": "troops", "player": 1, "value": 200000}, {"op": "gold", "player": 1, "value": 2000000}]
+    sc["intents"] = [{"tick": 0, "player": 1, "type": "build", "unit": "City", "x": ax + 50, "y": ay + 35}]
+    cells.append(sc)
+    base = dict(sc)
+    base = _base("struct_nocity", seeds, 1500, humans=1, spawns=sc["spawns"], sample_every=50, jitter=sc["jitter"])
+    base["setup"] = sc["setup"]
+    cells.append(base)
+    for post in (False, True):
+        name = "struct_post" if post else "struct_nopost"
+        sc = _base(name, seeds, 500, humans=2, spawns={"1": [ax + 10, ay + 10], "2": [ax + 90, ay + 60]},
+                   sample_every=10, jitter=jitter(seeds))
+        x0 = ax + 20
+        sc["setup"] = [{"op": "clear", "player": "all"}, rect(1, x0, ay + 5, x0 + 40, ay + 65),
+                       rect(2, x0 + 40, ay + 5, x0 + 80, ay + 65),
+                       {"op": "troops", "player": 1, "value": 40000}, {"op": "troops", "player": 2, "value": 10000},
+                       {"op": "gold", "player": 2, "value": 1000000}]
+        sc["intents"] = ([{"tick": 0, "player": 2, "type": "build", "unit": "DefensePost", "x": x0 + 48, "y": ay + 35}]
+                         if post else []) + [{"tick": 150, "player": 1, "type": "attack", "target": 2, "troops": 15000}]
+        sc["meta"] = {"post": post}
+        cells.append(sc)
+    return cells
+
+
 def enclave_cells(arenas: Arenas, seeds):
     """A small player completely surrounded by a bigger one."""
     ax, ay, pur = arenas.find("plains", 80 + 2 * J, 80 + 2 * J)
