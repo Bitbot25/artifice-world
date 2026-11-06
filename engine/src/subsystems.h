@@ -91,6 +91,14 @@ UnitId structures_build(OfeGame *g, PlayerId p, int type, TileRef tile, int32_t 
 bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount);
 bool structures_delete(OfeGame *g, PlayerId p, UnitId id);
 
+/* Spatial index of structures. unit_create / unit_destroy call the first two
+ * (they ignore other unit types); units_has_nearby / units_nearby use the
+ * queries for structure types. Same semantics as the units.c versions. */
+void structures_index_add(OfeGame *g, int32_t slot);
+void structures_index_remove(OfeGame *g, int32_t slot);
+bool structures_has_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner);
+int32_t structures_nearby(const OfeGame *g, TileRef tile, int32_t range, int type, PlayerId owner, int32_t *out_slots, int32_t cap);
+
 /* ------------------------------------------------------------------------ */
 /* Ships (ships.c): water pathfinding, transport ships, trade ships,         */
 /* warships and their shells                                                 */
