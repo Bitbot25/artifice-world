@@ -9,7 +9,7 @@ is **not** bit-exact with the TypeScript engine. It is deterministic against
 itself: the same map, config, seed and intents always give the same game, on
 any thread count. Bit-exact replays of downloaded human games are meant to go
 through the TypeScript engine, with the resulting state imported through the
-state-edit API.
+state-edit API (`python/artifice_engine/ts_import.py`).
 
 ## Build
 
@@ -60,11 +60,13 @@ State edits for sensitivity tests and scenario setup: `set_owner`,
 | Path | What |
 | --- | --- |
 | `engine/include/ofe.h` | Public C API (plain-data structs, mirrored in Python) |
+| `engine/include/ofe_mapstatic.h` | Per-map static outputs for feature extraction ([docs](docs/mapstatic.md)) |
 | `engine/src/internal.h` | Data layout: map, copy-on-write tiles, struct-of-arrays tables |
 | `engine/src/subsystems.h` | Contract between the core and the unit / AI modules |
-| `engine/src/*.c` | One file per subsystem (see the module map in `internal.h`) |
-| `python/artifice_engine/` | ctypes bindings and the numpy-facing API |
+| `engine/src/*.c` | One file per subsystem (module map in `internal.h`): core (`game`, `tiles`, `player`, `attack`, `cluster`, `spawn`, `intent`, `win`, `events`, `edit`, `units`), `structures`, `ships` + `pathfind`, `nukes`, `rail`, `doomsday`, `ai_*`, `mapstatic` |
+| `python/artifice_engine/` | ctypes bindings, numpy API, `vec.py` (batched envs), `mapstatic.py` (cached static features), `ts_import.py` (TypeScript state import) |
 | `tests/c`, `tests/python` | Tests (synthetic maps; real maps when `OFE_MAPS_DIR` is set) |
+| `tools/fidelity/` | Statistical comparison against the TypeScript engine ([report](tools/fidelity/REPORT.md)) |
 | `tools/` | Benchmark, OpenFront fetch script |
 
 ## Design
@@ -77,11 +79,26 @@ State edits for sensitivity tests and scenario setup: `set_owner`,
   its owner's border list live in 4096-tile chunks shared between clones and
   copied on first write, so cloning a game costs O(players + units), not
   O(tiles).
-* **Fixed tick order.** intents → players (growth, alliances, enclaves) →
-  land attacks → units (structures, ships, nukes, rail) → doomsday clock →
-  built-in AI → win check.
+* **OpenFront's tick order.** Spawn timer, then players (growth, alliances,
+  enclaves) → land attacks → units (structures, ships, nukes, rail) → doomsday
+  clock → built-in AI → win check, then new intents. Intents take effect at
+  the end of the tick, as OpenFront initialises new executions after the
+  tick's running ones.
 * **Own RNG and math.** splitmix64 streams per subsystem, libm math. No
   attempt at reproducing OpenFront's PRNG draws, iteration order or DetMath.
+* **Simplifications** are listed at the top of each module (e.g. rail tracks
+  are graph edges, nuke rot and MIRV targeting are sampled, water nukes are
+  off as in OpenFront's default).
+
+## Fidelity
+
+`tools/fidelity/compare.py` runs identical starting states through the
+TypeScript engine and this one over many seeds and compares distributions
+(see `tools/fidelity/README.md`). Idle troop and gold curves and spawns match
+exactly; land attacks on wilderness and on players match to within a few
+percent in tiles taken, losses and duration; enclave annexation, cities and
+defense posts match. The built-in AI is the least faithful part; see the
+report for current numbers.
 
 ## License
 
