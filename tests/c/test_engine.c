@@ -169,7 +169,7 @@ static void test_enclave_annexation(OfeMap *m) {
 
 static void test_real_map(void) {
     const char *dir = getenv("OFE_MAPS_DIR");
-    if (!dir) {
+    if (!dir || !*dir) {
         printf("skip real-map test (set OFE_MAPS_DIR)\n");
         return;
     }

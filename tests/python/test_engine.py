@@ -119,7 +119,7 @@ def test_intent_array_roundtrip():
     assert arr[0]["type"] == ae.INTENT["attack"] and arr[0]["troops"] == 10.0
 
 
-@pytest.mark.skipif("OFE_MAPS_DIR" not in os.environ, reason="needs OpenFront maps")
+@pytest.mark.skipif(not os.environ.get("OFE_MAPS_DIR"), reason="needs OpenFront maps")
 def test_real_map():
     m = ae.Map.load(os.path.join(os.environ["OFE_MAPS_DIR"], "world"))
     assert (m.width, m.height) == (2000, 1000)

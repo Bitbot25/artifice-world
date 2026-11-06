@@ -323,7 +323,8 @@ int main(void) {
     test_f16();
     test_synthetic();
     test_degenerate();
-    if (getenv("OFE_MAPS_DIR")) {
+    const char *maps_dir = getenv("OFE_MAPS_DIR");
+    if (maps_dir && *maps_dir) {
         printf("mapstatic timings:\n");
         const char *maps[] = {"world", "europe", "giantworldmap", "britannia"};
         for (unsigned i = 0; i < 4; i++) time_real(maps[i]);

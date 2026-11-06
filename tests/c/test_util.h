@@ -139,7 +139,7 @@ static inline OfeConfig base_config(void) {
 /* Real OpenFront map from $OFE_MAPS_DIR, or NULL (test should skip). */
 static inline OfeMap *load_real_map(const char *name) {
     const char *dir = getenv("OFE_MAPS_DIR");
-    if (!dir) return NULL;
+    if (!dir || !*dir) return NULL;
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s", dir, name);
     return ofe_map_load(path, 0);
