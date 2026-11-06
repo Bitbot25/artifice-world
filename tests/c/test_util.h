@@ -93,11 +93,35 @@ static void check_invariants(const OfeGame *g) {
         CHECK(borders[p] == g->players.border[p].len);
         CHECK(g->players.troops[p] >= 0);
     }
+    /* Unit bookkeeping: per-player counts and finished structure levels
+     * must match a recount of the unit table. */
+    int32_t *ucount = (int32_t *)calloc((size_t)n * OFE_UNIT_TYPE_COUNT, sizeof(int32_t));
+    int32_t *ulevels = (int32_t *)calloc((size_t)n * OFE_UNIT_TYPE_COUNT, sizeof(int32_t));
+    const UnitTable *u = &g->units;
+    int32_t alive = 0;
+    for (int32_t i = 0; i < u->count; i++) {
+        if (!u->alive[i]) continue;
+        alive++;
+        CHECK(u->owner[i] > 0 && u->owner[i] < n);
+        if (u->owner[i] <= 0 || u->owner[i] >= n) continue;
+        ucount[u->owner[i] * OFE_UNIT_TYPE_COUNT + u->type[i]]++;
+        if (unit_is_structure(u->type[i]) && !(u->flags[i] & OFE_UF_UNDER_CONSTRUCTION))
+            ulevels[u->owner[i] * OFE_UNIT_TYPE_COUNT + u->type[i]] += u->level[i];
+    }
+    CHECK(alive == u->num_alive);
+    for (PlayerId p = 1; p < n; p++) {
+        for (int k = 0; k < OFE_UNIT_TYPE_COUNT; k++) {
+            CHECK(ucount[p * OFE_UNIT_TYPE_COUNT + k] == g->players.unit_count[p][k]);
+            CHECK(ulevels[p * OFE_UNIT_TYPE_COUNT + k] == g->players.unit_levels[p][k]);
+        }
+    }
+    free(ucount);
+    free(ulevels);
     free(count);
     free(borders);
 }
 
-static OfeConfig base_config(void) {
+static inline OfeConfig base_config(void) {
     OfeConfig c;
     ofe_config_default(&c);
     c.num_humans = 2;
@@ -109,7 +133,7 @@ static OfeConfig base_config(void) {
 
 
 /* Real OpenFront map from $OFE_MAPS_DIR, or NULL (test should skip). */
-static OfeMap *load_real_map(const char *name) {
+static inline OfeMap *load_real_map(const char *name) {
     const char *dir = getenv("OFE_MAPS_DIR");
     if (!dir) return NULL;
     char path[1024];

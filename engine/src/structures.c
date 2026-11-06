@@ -449,7 +449,7 @@ bool structures_delete(OfeGame *g, PlayerId p, UnitId id) {
     if (!unit_is_structure(u->type[slot]) || (u->flags[slot] & OFE_UF_MARKED_FOR_DELETION)) return false;
     if (tile_owner(g, u->tile[slot]) != p || game_in_spawn_phase(g)) return false;
     StructuresState *s = g->sub->structures;
-    if (g->tick - s->last_delete[p] < DELETE_COOLDOWN_TICKS) return false;
+    if (s->last_delete[p] >= 0 && g->tick - s->last_delete[p] < DELETE_COOLDOWN_TICKS) return false;
     s->last_delete[p] = g->tick;
     g->units.flags[slot] |= OFE_UF_MARKED_FOR_DELETION;
     PendingDeletion d = {id, p, g->tick + DELETION_MARK_TICKS};
