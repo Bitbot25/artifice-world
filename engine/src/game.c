@@ -400,45 +400,75 @@ int32_t ofe_game_num_land_tiles(const OfeGame *g) { return g->num_land_tiles; }
 int32_t ofe_game_num_fallout_tiles(const OfeGame *g) { return g->num_fallout_tiles; }
 int32_t ofe_game_win_threshold_tenths(const OfeGame *g) { return win_threshold_tenths(g); }
 
-int32_t ofe_game_player_info(const OfeGame *g, int32_t p, OfePlayerInfo *out) {
-    if (!player_valid(g, p)) return -1;
+/* Per-player sums over the unit and attack tables, gathered in one pass so
+ * that querying every player stays O(players + units + attacks). */
+typedef struct PlayerSums {
+    double boat_troops, attack_troops;
+    int32_t attacks;
+} PlayerSums;
+
+static void gather_sums(const OfeGame *g, PlayerId only, PlayerSums *sums) {
+    const UnitTable *u = &g->units;
+    for (int32_t i = 0; i < u->count; i++) {
+        if (!u->alive[i] || u->type[i] != OFE_UNIT_TRANSPORT_SHIP) continue;
+        PlayerId o = u->owner[i];
+        if (only == 0 || o == only) sums[only ? 0 : o].boat_troops += u->troops[i];
+    }
+    const AttackTable *a = &g->attacks;
+    for (int32_t i = 0; i < a->count; i++) {
+        if (!a->active[i]) continue;
+        PlayerId o = a->attacker[i];
+        if (only != 0 && o != only) continue;
+        sums[only ? 0 : o].attack_troops += a->troops[i];
+        sums[only ? 0 : o].attacks++;
+    }
+}
+
+static void fill_player_info(const OfeGame *g, PlayerId p, const PlayerSums *sum, OfePlayerInfo *out) {
     const PlayerTable *pl = &g->players;
     memset(out, 0, sizeof(*out));
     out->id = p;
     out->type = pl->type[p];
     out->team = pl->team[p];
+    bool alive = player_alive(g, p);
     uint32_t f = 0;
-    if (player_alive(g, p)) f |= OFE_PF_ALIVE;
+    if (alive) f |= OFE_PF_ALIVE;
     if (pl->spawned[p]) f |= OFE_PF_SPAWNED;
     if (pl->disconnected[p]) f |= OFE_PF_DISCONNECTED;
     if (player_is_traitor(g, p)) f |= OFE_PF_TRAITOR;
-    if (pl->doomsday_tick[p] >= 0 && player_alive(g, p)) f |= OFE_PF_IN_DOOMSDAY;
-    if (player_is_immune(g, p) && pl->type[p] != OFE_PLAYER_BOT) f |= OFE_PF_IMMUNE;
+    if (pl->doomsday_tick[p] >= 0 && alive) f |= OFE_PF_IN_DOOMSDAY;
+    if (pl->type[p] != OFE_PLAYER_BOT && player_is_immune(g, p)) f |= OFE_PF_IMMUNE;
     out->flags = f;
     out->num_tiles = pl->num_tiles[p];
     out->num_border_tiles = pl->border[p].len;
     out->spawn_tile = pl->spawn_tile[p];
-    out->num_outgoing_attacks = attack_count_outgoing(g, p);
+    out->num_outgoing_attacks = sum->attacks;
     out->troops = pl->troops[p];
     out->gold = pl->gold[p];
     out->max_troops = player_max_troops(g, p);
-    out->troop_rate = pl->spawned[p] && player_alive(g, p) ? player_troop_increase(g, p) : 0.0;
-    out->outgoing_attack_troops = attack_outgoing_troops(g, p);
-    const UnitTable *u = &g->units;
-    for (int32_t i = 0; i < u->count; i++) {
-        if (u->alive[i] && u->owner[i] == p && u->type[i] == OFE_UNIT_TRANSPORT_SHIP) out->boat_troops += u->troops[i];
-    }
+    out->troop_rate = pl->spawned[p] && alive ? player_troop_increase(g, p) : 0.0;
+    out->outgoing_attack_troops = sum->attack_troops;
+    out->boat_troops = sum->boat_troops;
     memcpy(out->units, pl->unit_count[p], sizeof(out->units));
     memcpy(out->unit_levels, pl->unit_levels[p], sizeof(out->unit_levels));
-    int32_t tt = pl->traitor_tick[p];
-    out->traitor_ticks_left = player_is_traitor(g, p) ? 300 - (g->tick - tt) : 0;
+    out->traitor_ticks_left = player_is_traitor(g, p) ? 300 - (g->tick - pl->traitor_tick[p]) : 0;
     out->doomsday_ticks = pl->doomsday_tick[p] >= 0 ? g->tick - pl->doomsday_tick[p] : 0;
+}
+
+int32_t ofe_game_player_info(const OfeGame *g, int32_t p, OfePlayerInfo *out) {
+    if (!player_valid(g, p)) return -1;
+    PlayerSums sum = {0, 0, 0};
+    gather_sums(g, p, &sum);
+    fill_player_info(g, p, &sum, out);
     return 0;
 }
 
 int32_t ofe_game_players(const OfeGame *g, OfePlayerInfo *out, int32_t cap) {
     int32_t n = OFE_MIN(cap, g->players.count - 1);
-    for (int32_t i = 0; i < n; i++) ofe_game_player_info(g, i + 1, &out[i]);
+    PlayerSums *sums = (PlayerSums *)ofe_xcalloc((size_t)g->players.count, sizeof(PlayerSums));
+    gather_sums(g, 0, sums);
+    for (int32_t i = 0; i < n; i++) fill_player_info(g, i + 1, &sums[i + 1], &out[i]);
+    free(sums);
     return n;
 }
 
