@@ -32,7 +32,7 @@ $(BUILD)/libofe.so: $(OBJ)
 	$(CC) -shared -o $@ $^ $(LDFLAGS)
 
 $(BUILD)/libofe.a: $(OBJ)
-	ar rcs $@ $^
+	rm -f $@ && ar rcs $@ $^
 
 # Every tests/c/test_*.c is its own test binary.
 CTESTS := $(patsubst tests/c/%.c,$(BUILD)/tests/%,$(wildcard tests/c/test_*.c))
