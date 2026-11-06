@@ -1,0 +1,9 @@
+build/
+build-debug/
+third_party/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.so
+*.o
+cache/
