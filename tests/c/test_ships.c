@@ -429,7 +429,7 @@ static void test_world(void) {
     }
     CHECK(found > 100);
     CHECK(invalid == 0);
-    CHECK(max_ratio < 25.0);
+    CHECK(max_ratio < 40.0); /* orthogonal steps; the worst case is around a peninsula */
     IntVec_free(&shores);
     IntVec_free(&path);
 

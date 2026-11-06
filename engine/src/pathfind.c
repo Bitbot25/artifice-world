@@ -20,14 +20,15 @@
  *   1. "Access": a short breadth-first search at full resolution from the
  *      endpoint (a shore tile or a water tile near the coast) to the nearest
  *      node of the grid in open water.
- *   2. Weighted A* over the grid (8 moves, each costing its length in tiles
- *      since a ship covers one tile per tick, diagonals included; a small
- *      penalty next to land). Long routes are searched on the coarse grid
+ *   2. Weighted A* over the grid (8 moves, each costing the orthogonal
+ *      steps a ship needs for it, so a diagonal costs two; a small penalty
+ *      next to land). Long routes are searched on the coarse grid
  *      first, which is 4x fewer nodes; if that fails, on the fine grid.
  *   3. String pulling: the node route is replaced by the fewest straight
  *      segments that stay in water at least one tile off the coast.
- *   4. Expansion to one tile per step (Chebyshev lines), so route length in
- *      tiles is exactly the number of ticks the ship needs.
+ *   4. Expansion to one orthogonal step per tile (a diagonal of the line
+ *      becomes two steps, as in OpenFront's traced paths), so route length
+ *      in tiles is exactly the number of ticks the ship needs.
  *
  * Routes between the same two tiles are memoised per map as key points (a
  * route is a pure function of the terrain, so the memo only affects speed).
@@ -420,8 +421,8 @@ static bool astar(const Grid *gr, Scratch *sc, const int32_t *src_nodes, int ns,
     const int gx = goal % mw, gy = goal / mw;
     sc->heap.len = 0;
     sc->cells.len = 0;
-    /* Heuristic: straight-line steps (Chebyshev, in tiles), inflated for speed. */
-#define H(cx, cy) (ASTAR_WEIGHT * (float)(stride * OFE_MAX(abs((cx) - gx), abs((cy) - gy))) + 0.01f * (float)(abs((cx) - gx) + abs((cy) - gy)))
+    /* Heuristic: orthogonal steps to the goal (in tiles), inflated for speed. */
+#define H(cx, cy) (ASTAR_WEIGHT * (float)(stride * (abs((cx) - gx) + abs((cy) - gy))))
     for (int i = 0; i < ns; i++) {
         int32_t c = src_nodes[i];
         if (sc->seen[c] == gen) continue;
@@ -457,7 +458,7 @@ static bool astar(const Grid *gr, Scratch *sc, const int32_t *src_nodes, int ns,
             if (!((adj >> d) & 1)) continue;
             int32_t n = c + DY[d] * mw + DX[d];
             if (sc->closed[n] == gen) continue;
-            float ng = cg + (float)stride * (1.0f + coast_penalty(gr->clear[n]));
+            float ng = cg + (float)(stride * (d < 4 ? 1 : 2)) * (1.0f + coast_penalty(gr->clear[n]));
             if (sc->seen[n] != gen || ng < sc->g[n]) {
                 sc->seen[n] = gen;
                 sc->g[n] = ng;
@@ -517,7 +518,10 @@ static void smooth(const OfeMap *m, const IntVec *poly, IntVec *kept) {
     }
 }
 
-/* One tile per step along straight lines between consecutive key points. */
+/* One tile per step along straight lines between consecutive key points.
+ * Steps are orthogonal, like OpenFront's traced water paths: a diagonal step
+ * of the line goes through whichever of its two orthogonal neighbours is
+ * water (x first), so a segment takes |dx| + |dy| ticks. */
 static void expand(const OfeMap *m, const int32_t *pts, int32_t n, IntVec *out) {
     const int w = m->width;
     out->len = 0;
@@ -526,8 +530,17 @@ static void expand(const OfeMap *m, const int32_t *pts, int32_t n, IntVec *out) 
     for (int32_t i = 0; i + 1 < n; i++) {
         int ax = pts[i] % w, ay = pts[i] / w, bx = pts[i + 1] % w, by = pts[i + 1] / w;
         int dx = bx - ax, dy = by - ay, steps = OFE_MAX(abs(dx), abs(dy));
+        int px = ax, py = ay;
         for (int k = 1; k <= steps; k++) {
-            IntVec_push(out, (ay + round_div(dy * k, steps)) * w + (ax + round_div(dx * k, steps)));
+            int x = ax + round_div(dx * k, steps), y = ay + round_div(dy * k, steps);
+            if (x != px && y != py) {
+                /* Both land only where a line cuts a corner; then step diagonally. */
+                if (!tile_land(m, x, py)) IntVec_push(out, py * w + x);
+                else if (!tile_land(m, px, y)) IntVec_push(out, y * w + px);
+            }
+            IntVec_push(out, y * w + x);
+            px = x;
+            py = y;
         }
     }
 }
