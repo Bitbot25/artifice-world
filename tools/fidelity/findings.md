@@ -1,48 +1,63 @@
-## Findings (hand-written; the tables further down are generated)
+Scope: world map (compact, 1000x500). The single-player scenarios (idle, expand, land attacks, structures, enclaves,
+boats) start both engines from one scenario script (same spawn tile, then explicit tile / troop / gold setup), 8-20
+seeds each, with a per-seed offset of up to 6 tiles so both engines have a comparable spread (the TS engine is
+deterministic for a given geometry). The AI section runs 60 tribes and the map's 72 nations with no humans for 6000
+ticks (Medium difficulty, 6 seeds; spawn positions are random in both engines, so only distributions compare).
+Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted in the comparison.
 
-Scope: world map (compact, 1000x500), identical starting states built by one scenario script for both engines (same
-spawn tile, then explicit tile / troop / gold setup), 8-20 seeds per scenario. The TS engine is deterministic for a
-given geometry, so every scenario is also translated by a per-seed offset (up to 6 tiles) to give both engines a
-comparable spread. C features exercised: troop/gold growth, land attacks, spawn, enclave annexation, city and defense
-post. Nukes, rail and doomsday exist in C but are not scripted here. Ships and the nation/tribe AI are stubs in C.
-
-**Matches**
+**What matches**
 
 | Area | Result |
 |---|---|
 | Idle player troop and gold growth, 6000 ticks | bit-identical |
-| Spawn: tiles, troops, gold for 12 humans (inland and coastal) | identical |
-| Expanding player (attack on terra nullius every 10 s), t=100..4000 | tiles within 1% (final 55,419 identical), troops +0.2% at t=500..1000 |
+| Spawn: tiles, troops, gold for 12 humans; spawn phase length (tick 202) | identical |
+| Expanding player (attack on terra nullius every 10 s), t=100..4000 | tiles within 1%, troops +0.2% |
 | Land attack on terra nullius, 9 cells | tiles conquered: median delta 0.0%, p90 0.3% |
 | Land attack on a player, 36 cells | tiles conquered: median +0.6%, p90 1.9%, worst cell +2.8% |
-| Wiping out an 80-tile player | tiles, gold, dead flag identical |
-| Enclave annexation (r=2..12 inside r=36) | annexed in 100% of games in both, same tiles |
-| City (+250k max troops) and defense post | troops within 0.2% then exact; gold cost identical; 31.5 vs 31.4 tiles into a post |
+| Wiping out an 80-tile player; enclave annexation; city and defense post | identical or within 0.2% |
+| Boat travel time, 10 routes (25 to 350 tiles) | all land in both except boat_d350_0 (neither within 700 ticks); per-route C/TS ratio mean 0.98 (min 0.69, max 1.12); boat_d350_1: 696 vs 697 ticks |
+| Nation spawn size at t=0 | 46.6 vs 47.2 tiles per nation (C used to give a fixed 49.9) |
+| Tribes alive at t=600 | 14.5 vs 12.5 (was 23 vs 12.5); all gone by t=2400 in both |
+| Nation land at t=600 / t=6000 | 139k vs 140k / 156k vs 158k tiles; nations alive at t=6000: 13.5 vs 12.5 |
+| Leader's land share at t=6000 | 0.33 vs 0.41 (n=6, std 0.13: not distinguishable) |
 
-**Discrepancies (small; tick ordering, not formulas)**
+**What changed since the first report (and why it mattered)**
 
-1. Attack start timing. In TS a new attack execution is initialised after the tick's executions have ticked, so its
-   first conquest is on the next tick. In C (intents, players, attacks order in game.c) the attack also conquers on
-   the tick it is issued. Attacks finish about 1 tick earlier in C (e.g. 7.4 vs 8.6 ticks for 3k-troop attacks) and C
-   conquers +0.6% more tiles at a fixed horizon (up to +2.8% for 10k-troop attacks). Fix: let attacks created in
-   intents_apply skip their first attacks_tick (engine/src/attack.c attacks_tick / attack_start).
-2. Troop regeneration vs attack start: TS regenerates first and then deducts the attack troops; C deducts first
-   (attack_start runs from intents_apply before players_tick). Visible as +0.2% troops one tick after a build or
-   attack, and defender troops at attack start.
-3. Spawn phase ends at tick 202 in TS (`ticks() > numSpawnPhaseTurns`) and 201 in C.
-4. Enclave annexation latency: C annexes on the first tick; TS checks each player every ~20 ticks, staggered by
-   `simpleHash(id) % 20`, and only after a territory change at or after `lastCalc`, so TS can lag by up to ~20 ticks
-   (mean 2.3 to 7 ticks vs 2). The harness waits 25 ticks before applying setup edits for that reason.
-5. Nation spawn size: nations average 47.2 tiles in TS vs 49.9 in C at game start (3,396 vs 3,591 for 72 nations);
-   tribes 51.9 vs 52.0 (TS truncates spawn discs near coasts/overlaps).
-6. Conquest loot: a conquered 80-tile player with 50,000 gold gave the attacker nothing in either engine
-   (identical, but check TS conquerPlayer against the intended rule if loot matters).
+* Tick ordering (the old discrepancies 1 to 4: attack start, regeneration vs attack, spawn phase length, enclave
+  latency) is fixed and the idle/expand/attack numbers above are exact or within a percent.
+* Nation timing was the cause of the "tribes die slower in C" gap. OpenFront builds a nation's behaviours and sends its
+  opening attack on the very first tick after the spawn phase, and from then on its full decisions fall on ticks where
+  `tick % rate == offset` (structure-only turns at 1/3 and 2/3 of the period). C started the opening on a random
+  tick in the first period and its first real decision one period after that, so nations began taking tribe land about
+  60 ticks late. Both now follow the TS schedule.
+* Nation spawns: tribes are placed first, nations then pick a random free land tile within 25 tiles of their map spot
+  (half of the mountain tiles are skipped) and hop to a new spot on every beat during the spawn phase, so their discs
+  are cut short by tribes that were already there. An explicit spawn tile is never swapped for a random one.
+* AI alliance answers are given on the AI's own turn (OpenFront's AIs look at their inbox only when they wake up):
+  nations reject everything asked during the spawn phase, tribes accept everything, and neither asks to extend an
+  alliance on its own (only an agent's extension ask is answered).
+* Ship routing: both routing grids cut straits one or two tiles wide, which closed the Mediterranean, Black Sea and
+  Baltic and sent Arctic to Pacific boats round the Atlantic (1250 ticks instead of about 700 in boat_d350_1). A full-
+  resolution grid is now searched when both grids fail, or when a grid route is over three times the straight line
+  (greedy A*, built once per map, memoised). All 297 random shore pairs of the world test are routable (9 failed before).
+  AI "could a boat go there" probes no longer search at all (same water body is enough).
+* A cancelled transport ship sails to the own shore nearest to where it is (25% of the troops lost on arrival), not
+  back along its route.
 
-**Not comparable yet**
+**Remaining differences (not fixed)**
 
-* Boats: TS travel time is about 1.87 x straight-line distance (33 ticks at 25 tiles, 155 at 100, 317 at 200,
-  697 at 350). C has no transport ships; the section fills in when ships land.
-* Tribe/nation AI (C stub): after 6000 ticks (60 tribes + 72 nations) nations hold 158,029 tiles in TS vs 151,699 in
-  C (-4%), but 12.5 vs 20.3 nations are alive, and TS tribes are all gone by tick 2400 (C: 1.2 left). Leader land
-  share at t=2400: 11.4% vs 16.3%. No game reached the 80% bar in 6000 ticks in either. Re-run after the AI lands.
-* Nukes, trade/trains, doomsday, alliances, embargoes and team games are not scripted in the comparison.
+1. Pathfinding is not OpenFront's hierarchical A*: routes come from weighted A* on routing grids plus string pulling.
+   Straight stretches take the same number of ticks, detours can differ by tens of percent (boat_d50_1: 74 vs 107 ticks,
+   boat_d200_1: 414 vs 371).
+2. The retreat shore is chosen by straight-line distance, OpenFront's closestShoreByWater measures by water.
+3. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here.
+4. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
+   not checked against hostile warships, and "largest cluster" boxes are the border bounding box. Medium is what the
+   comparison runs.
+5. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
+   trajectory; no nuke price memory or strike follow-ups for nations. A 20-minute Impossible world game launches about
+   250 nukes in C; there is no TS number to compare it with yet.
+6. Enclave annexation uses no diagonal-pinch pass (nuke craters).
+7. No emojis, no tutorial logic, no team-spawn areas.
+8. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
+   confidence intervals (leader share, nations alive at t=6000).
