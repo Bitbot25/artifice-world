@@ -148,6 +148,10 @@ static void annex(OfeGame *g, PlayerId p, PlayerId captor, const IntVec *tiles) 
 }
 
 void cluster_check_player(OfeGame *g, PlayerId p) {
+#if OFE_TS_PARITY
+    cluster_check_player_ts(g, p); /* TS removeClusters, step for step */
+    return;
+#endif
     const OfeMap *m = g->map;
     const IntVec *border = &g->players.border[p];
     if (border->len == 0) return;

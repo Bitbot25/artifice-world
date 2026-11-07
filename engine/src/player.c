@@ -113,7 +113,7 @@ double player_max_troops(const OfeGame *g, PlayerId p) {
     if (type == OFE_PLAYER_HUMAN && g->cfg.infinite_troops) {
         base = 1e9;
     } else {
-        base = 2.0 * (pow((double)pl->num_tiles[p], 0.6) * 1000.0 + 50000.0) + city;
+        base = 2.0 * (det_pow((double)pl->num_tiles[p], 0.6) * 1000.0 + 50000.0) + city;
     }
     if (type == OFE_PLAYER_BOT) return base / 3.0;
     if (type == OFE_PLAYER_HUMAN) return base;
@@ -125,7 +125,7 @@ double player_troop_increase(const OfeGame *g, PlayerId p) {
     const PlayerTable *pl = &g->players;
     double max = player_max_troops(g, p);
     double troops = (double)pl->troops[p];
-    double add = 10.0 + pow(troops, 0.73) / 4.0;
+    double add = 10.0 + det_pow(troops, 0.73) / 4.0;
     add *= 1.0 - troops / max;
     if (pl->type[p] == OFE_PLAYER_BOT) add *= 0.5;
     if (pl->type[p] == OFE_PLAYER_NATION) {
@@ -326,6 +326,38 @@ void alliance_request_extension(OfeGame *g, PlayerId from, PlayerId to) {
     }
 }
 
+#if OFE_TS_PARITY
+/* The alliance part of a player's execution: expire its own alliances whose
+ * time is up, and prompt the AIs for an extension 30 s before. */
+void alliances_expire_of(OfeGame *g, PlayerId p) {
+    for (int32_t i = g->alliances.len - 1; i >= 0; i--) {
+        Alliance *al = &g->alliances.data[i];
+        if (al->a != p && al->b != p) continue;
+        if (al->expires_tick <= g->tick) {
+            event_emit(g, OFE_EV_ALLIANCE_EXPIRED, 0, al->a, al->b, 0, 0);
+            g->alliances.data[i] = g->alliances.data[--g->alliances.len];
+        }
+    }
+}
+
+/* Past and pending alliance requests: forget old ones, reject unanswered ones
+ * (TS: the AllianceRequestExecution, plus the extension prompt for AIs). */
+void alliance_requests_tick(OfeGame *g) {
+    for (int32_t i = g->past_requests.len - 1; i >= 0; i--) {
+        if (g->tick - g->past_requests.data[i].created_tick >= ALLIANCE_REQUEST_COOLDOWN) {
+            g->past_requests.data[i] = g->past_requests.data[--g->past_requests.len];
+        }
+    }
+    for (int32_t i = g->alliance_requests.len - 1; i >= 0; i--) {
+        AllianceRequest *r = &g->alliance_requests.data[i];
+        if (g->tick - r->created_tick > ALLIANCE_REQUEST_DURATION) {
+            event_emit(g, OFE_EV_ALLIANCE_REJECTED, 0, r->requestor, r->recipient, 0, 0);
+            request_remove(g, i);
+        }
+    }
+}
+#endif
+
 void alliances_tick(OfeGame *g) {
     /* Forget past requests once their cooldown is over. */
     for (int32_t i = g->past_requests.len - 1; i >= 0; i--) {
@@ -427,16 +459,29 @@ static void player_died(OfeGame *g, PlayerId p) {
     for (int32_t i = 0; i < u->count; i++) {
         if (u->alive[i] && u->owner[i] == p && !is_nuke(u->type[i])) unit_destroy(g, unit_id_of_slot(g, i), 0);
     }
-    /* Alliances and requests involving the dead player vanish silently. */
+    /* Alliances of the dead player vanish silently (its requests expire on their own). */
     for (int32_t i = g->alliances.len - 1; i >= 0; i--) {
         Alliance *al = &g->alliances.data[i];
         if (al->a == p || al->b == p) g->alliances.data[i] = g->alliances.data[--g->alliances.len];
     }
-    for (int32_t i = g->alliance_requests.len - 1; i >= 0; i--) {
-        AllianceRequest *r = &g->alliance_requests.data[i];
-        if (r->requestor == p || r->recipient == p) request_remove(g, i);
-    }
     event_emit(g, OFE_EV_PLAYER_DIED, 0, p, 0, 0, 0);
+}
+
+/* Troop and gold income of one player. */
+static void player_grow(OfeGame *g, PlayerId p) {
+    player_add_troops(g, p, player_troop_increase(g, p));
+    player_add_gold(g, p, player_gold_rate(g, p));
+}
+
+/* Enclave annexation: every 20 ticks if the territory changed, or every tick
+ * while small. */
+static void player_check_clusters(OfeGame *g, PlayerId p) {
+    PlayerTable *pl = &g->players;
+    bool due = g->tick - pl->cluster_calc_tick[p] > 20 || pl->num_tiles[p] < 100;
+    if (due && pl->last_tile_change[p] >= pl->cluster_calc_tick[p]) {
+        pl->cluster_calc_tick[p] = g->tick;
+        cluster_check_player(g, p);
+    }
 }
 
 void players_tick(OfeGame *g) {
@@ -448,19 +493,44 @@ void players_tick(OfeGame *g) {
             player_died(g, p);
             continue;
         }
-        double inc = player_troop_increase(g, p);
-        player_add_troops(g, p, inc);
-        int64_t gold = player_gold_rate(g, p);
-        player_add_gold(g, p, gold);
-
-        /* Enclave annexation: every 20 ticks if the territory changed, or
-         * every tick while small. */
-        bool due = g->tick - pl->cluster_calc_tick[p] > 20 || pl->num_tiles[p] < 100;
-        if (due && pl->last_tile_change[p] >= pl->cluster_calc_tick[p]) {
-            pl->cluster_calc_tick[p] = g->tick;
-            cluster_check_player(g, p);
-        }
+        player_grow(g, p);
+        player_check_clusters(g, p);
     }
     alliances_tick(g);
     expire_embargoes(g);
 }
+
+#if OFE_TS_PARITY
+/* PlayerExecution.tick for one player, in execution order. Returns false once
+ * the player is dead (the execution ends). TS expires the player's own
+ * alliances and embargoes here rather than in a global pass. */
+bool player_exec_tick_ts(OfeGame *g, PlayerId p) {
+    PlayerTable *pl = &g->players;
+    if (!player_alive(g, p)) {
+        player_died(g, p);
+        return false;
+    }
+    player_grow(g, p);
+    alliances_expire_of(g, p);
+    for (int32_t i = g->embargoes.len - 1; i >= 0; i--) {
+        Embargo *e = &g->embargoes.data[i];
+        if (e->from == p && e->temporary && g->tick - e->created_tick > TEMPORARY_EMBARGO_DURATION) {
+            player_stop_embargo(g, e->from, e->to);
+        }
+    }
+    player_check_clusters(g, p);
+    return !pl->dead[p];
+}
+
+/* Decays one player's relations (PlayerExecution.tick starts with it). */
+void player_decay_relations(OfeGame *g, PlayerId p) {
+    int32_t row = g->players.relation_row[p];
+    if (row < 0) return;
+    for (int32_t o = 0; o < g->players.cap; o++) {
+        float *r = &g->relations[(size_t)row * g->players.cap + o];
+        if (*r == 0.0f) continue;
+        *r += *r > 0 ? -RELATION_DECAY : RELATION_DECAY;
+        if (fabsf(*r) < RELATION_DECAY * 2) *r = 0.0f;
+    }
+}
+#endif

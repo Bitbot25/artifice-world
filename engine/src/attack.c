@@ -97,6 +97,22 @@ double attack_troops_against(const OfeGame *g, PlayerId attacker, PlayerId targe
     return best;
 }
 
+/* Active attack rows sorted by id: the order OpenFront creates them in. Row
+ * indices are reused, so they do not tell. */
+static void attacks_in_creation_order(const OfeGame *g, IntVec *out) {
+    const AttackTable *t = &g->attacks;
+    for (int32_t i = 0; i < t->count; i++) {
+        if (!t->active[i]) continue;
+        int32_t j = out->len;
+        IntVec_push(out, i);
+        while (j > 0 && t->id[out->data[j - 1]] > t->id[i]) {
+            out->data[j] = out->data[j - 1];
+            j--;
+        }
+        out->data[j] = i;
+    }
+}
+
 /* ---- Combat formula ----------------------------------------------------------- */
 
 typedef struct AttackResult {
@@ -190,7 +206,7 @@ static void add_neighbors(OfeGame *g, int32_t a, TileRef tile) {
         case TC_MOUNTAIN: mag = 2.0; break;
         default: mag = 0.0; break;
         }
-        double pri = (rng_int(&t->rng[a], 0, 7) + 10) * (1.0 - owned_by_me * 0.5 + mag / 2.0) + g->tick;
+        double pri = (ts_rand_int(&t->rng[a], 0, 7) + 10) * (1.0 - owned_by_me * 0.5 + mag / 2.0) + g->tick;
         heap_push(&t->to_conquer[a], q, (float)pri);
     }
 }
@@ -199,8 +215,16 @@ static void refresh_to_conquer(OfeGame *g, int32_t a) {
     AttackTable *t = &g->attacks;
     t->to_conquer[a].len = 0;
     intset_clear(&t->front[a]);
+#if OFE_TS_PARITY
+    /* TS: ownerBorderTiles.forEach in set insertion order. */
+    const TileSeq *b = &g->players.border_seq[t->attacker[a]];
+    for (int32_t i = 0; i < b->len; i++) {
+        if (b->data[i] >= 0) add_neighbors(g, a, b->data[i]);
+    }
+#else
     const IntVec *b = &g->players.border[t->attacker[a]];
     for (int32_t i = 0; i < b->len; i++) add_neighbors(g, a, b->data[i]);
+#endif
 }
 
 /* ---- Retreat and merging ------------------------------------------------------------ */
@@ -263,7 +287,7 @@ int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troo
     t->target[a] = target;
     t->troops[a] = troops;
     t->source_tile[a] = source_tile;
-    t->rng[a] = rng_derive(g->seed, ((uint64_t)t->id[a] << 16) ^ 0xA77ACCu);
+    ts_rand_init(&t->rng[a], 123); /* AttackExecution: new PseudoRandom(123) */
     t->to_conquer[a].len = 0;
     intset_clear(&t->front[a]);
     pl->attacks_sent[attacker]++;
@@ -272,13 +296,18 @@ int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troo
     if (source_tile >= 0) add_neighbors(g, a, source_tile);
     else refresh_to_conquer(g, a);
 
+    /* The owner's attack lists in creation order (TS iterates arrays). */
+    IntVec order = {0};
+    attacks_in_creation_order(g, &order);
     /* An attack the other way cancels out troop for troop. */
-    for (int32_t i = 0; i < t->count && target != 0; i++) {
+    for (int32_t k = 0; k < order.len && target != 0; k++) {
+        int32_t i = order.data[k];
         if (!t->active[i] || i == a || t->attacker[i] != target || t->target[i] != attacker) continue;
         if (t->troops[i] > t->troops[a]) {
             t->troops[i] -= t->troops[a];
             t->troops[a] = 0;
             attack_end(g, a, OFE_ATTACK_END_MERGED);
+            IntVec_free(&order);
             return -1;
         }
         t->troops[a] -= t->troops[i];
@@ -287,7 +316,8 @@ int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troo
     }
     /* Land attacks on the same target merge into this one. */
     if (source_tile < 0) {
-        for (int32_t i = 0; i < t->count; i++) {
+        for (int32_t k = 0; k < order.len; k++) {
+            int32_t i = order.data[k];
             if (!t->active[i] || i == a || t->attacker[i] != attacker || t->target[i] != target) continue;
             t->troops[a] += t->troops[i];
             t->troops[i] = 0;
@@ -295,6 +325,7 @@ int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troo
         }
     }
 
+    IntVec_free(&order);
     if (t->to_conquer[a].len == 0) {
         /* Nothing to conquer next to us: give the troops back. */
         if (!remove_troops && source_tile < 0) t->troops[a] = OFE_MAX(0.0, t->troops[a] - troops);
@@ -317,6 +348,44 @@ int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troo
 
 /* Target lost (almost) everything: it's conquered and its last tiles go to
  * whoever borders them. */
+#if OFE_TS_PARITY
+/* TS handleDeadDefender: up to 100 passes over the target's tiles in set
+ * order; a tile next to the attacker goes to it, else to the first
+ * neighbouring player that is neither the target nor friendly to it. Tiles
+ * handed over during a pass are skipped, and later tiles see the changes. */
+static void dead_defender_pass_ts(OfeGame *g, PlayerId attacker, PlayerId target, bool *progressed) {
+    TileSeq *seq = &g->players.tiles_seq[target];
+    tile_seq_iter_begin(g);
+    for (int32_t i = 0; i < seq->len; i++) {
+        TileRef tile = seq->data[i];
+        if (tile < 0) continue;
+        TileRef nb[4];
+        int n = map_neighbors4(g->map, tile, nb);
+        PlayerId new_owner = 0;
+        for (int k = 0; k < n && !new_owner; k++) {
+            if (tile_owner(g, nb[k]) == attacker) new_owner = attacker;
+        }
+        for (int k = 0; k < n && !new_owner; k++) {
+            PlayerId o = tile_owner(g, nb[k]);
+            if (o != 0 && o != target && !player_friendly(g, o, target)) new_owner = o;
+        }
+        if (!new_owner) continue;
+        tile_set_owner(g, tile, new_owner);
+        *progressed = true;
+    }
+    tile_seq_iter_end(g);
+}
+
+static void handle_dead_defender(OfeGame *g, PlayerId attacker, PlayerId target) {
+    if (target == 0 || g->players.num_tiles[target] >= 100) return;
+    player_conquered(g, attacker, target);
+    for (int pass = 0; pass < 100; pass++) {
+        bool progressed = false;
+        dead_defender_pass_ts(g, attacker, target, &progressed);
+        if (!progressed) break;
+    }
+}
+#else
 static void handle_dead_defender(OfeGame *g, PlayerId attacker, PlayerId target) {
     if (target == 0 || g->players.num_tiles[target] >= 100) return;
     player_conquered(g, attacker, target);
@@ -347,6 +416,8 @@ static void handle_dead_defender(OfeGame *g, PlayerId attacker, PlayerId target)
     }
 }
 
+#endif
+
 static void attack_tick_one(OfeGame *g, int32_t a) {
     AttackTable *t = &g->attacks;
     const OfeMap *m = g->map;
@@ -362,8 +433,8 @@ static void attack_tick_one(OfeGame *g, int32_t a) {
     }
 
     double troops = t->troops[a];
-    double border_size = t->front[a].len + rng_int(&t->rng[a], 0, 5);
-    if (border_size < 1) border_size = 1;
+    /* No clamp: an empty front divides by zero (inf) like OpenFront's. */
+    double border_size = t->front[a].len + ts_rand_int(&t->rng[a], 0, 5);
     double budget = 1.0;
     while (budget > 0) {
         if (troops < 1) {
@@ -385,11 +456,21 @@ static void attack_tick_one(OfeGame *g, int32_t a) {
         AttackResult r = attack_logic(g, a, tile, troops, border_size);
         budget -= r.tick_fraction;
         troops -= r.attacker_loss;
-        t->troops[a] = troops;
+        t->troops[a] = OFE_MAX(0.0, troops); /* Attack.setTroops clamps at 0 */
         if (target != 0) player_remove_troops(g, target, r.defender_loss);
         tile_set_owner(g, tile, me);
         handle_dead_defender(g, me, target);
     }
+}
+
+/* Runs one attack's tick (the parity build ticks attacks in execution order). */
+void attack_tick_row(OfeGame *g, int32_t a) { attack_tick_one(g, a); }
+
+int32_t attack_row_by_id(const OfeGame *g, int32_t id) {
+    for (int32_t i = 0; i < g->attacks.count; i++) {
+        if (g->attacks.active[i] && g->attacks.id[i] == id) return i;
+    }
+    return -1;
 }
 
 void attacks_tick(OfeGame *g) {

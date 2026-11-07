@@ -161,7 +161,25 @@ typedef struct TileChunk {
      * tile. A border tile is an owned tile with a 4-neighbour that has a
      * different owner (or that is water / off-map-edge counts as no). */
     int32_t border_pos[TILE_CHUNK_SIZE];
+#if OFE_TS_PARITY
+    /* Position of the tile in its owner's insertion-ordered tile / border
+     * sequence (TileSeq), -1 if absent. */
+    int32_t tiles_seq_pos[TILE_CHUNK_SIZE];
+    int32_t border_seq_pos[TILE_CHUNK_SIZE];
+#endif
 } TileChunk;
+
+#if OFE_TS_PARITY
+/* Insertion-ordered set of tiles with the semantics of OpenFront's TileSet
+ * (a JS Set): iteration in insertion order, delete + add moves to the end,
+ * deleted slots are tombstones (-1) skipped by iteration. Iterate with
+ * `for (i = 0; i < s.len; i++) if (s.data[i] >= 0)` re-reading len each
+ * step, and bracket loops that mutate with seq_iter_begin/end. */
+typedef struct TileSeq {
+    int32_t *data;
+    int32_t len, cap, live;
+} TileSeq;
+#endif
 
 typedef struct TileStore {
     int32_t num_chunks;
@@ -206,6 +224,7 @@ typedef int32_t AiState[8];
 #define PLAYER_COLUMNS(X)                                                           \
     X(uint8_t, type) /* OfePlayerType */                                            \
     X(uint8_t, spawned)                                                             \
+    X(uint32_t, id_hash) /* simpleHash of the TS player id (see game_assign_ids) */  \
     X(uint8_t, disconnected)                                                        \
     X(uint8_t, dead) /* was alive, now has no tiles */                              \
     X(int16_t, team) /* -1 = none */                                                \
@@ -243,6 +262,10 @@ typedef struct PlayerTable {
     /* Per-player variable-length data. */
     IntVec *border; /* border tiles; tile's index lives in TileChunk.border_pos */
     char (*name)[48];
+#if OFE_TS_PARITY
+    TileSeq *tiles_seq; /* player.tiles() in TS insertion order */
+    TileSeq *border_seq; /* player.borderTiles() in TS insertion order */
+#endif
 } PlayerTable;
 
 /* ---- Attacks ------------------------------------------------------------- */
@@ -254,7 +277,7 @@ typedef struct PlayerTable {
     X(PlayerId, target)                                                             \
     X(double, troops)                                                               \
     X(TileRef, source_tile) /* -1 = land attack; boat landing tile otherwise */     \
-    X(uint64_t, rng)
+    X(TsRandom, rng) /* AttackExecution's PseudoRandom(123) */
 
 typedef struct AttackTable {
     int32_t count, cap;
@@ -342,6 +365,7 @@ struct OfeGame {
     uint64_t rng; /* game-level stream (spawns, misc) */
 
     int32_t tick;
+    int64_t id_seed; /* simpleHash(game id): seeds every OpenFront random stream */
     int32_t spawn_phase_ticks; /* resolved from cfg */
     int32_t start_tick; /* tick the spawn phase ended, -1 while spawning */
     int32_t winner; /* player id, 0 = none */
@@ -373,6 +397,11 @@ struct OfeGame {
     uint32_t *visit_stamp; /* per tile; flood fills compare against visit_gen */
     uint32_t visit_gen;
     IntVec scratch_a, scratch_b;
+#if OFE_TS_PARITY
+    int32_t seq_iter; /* >0 while a TileSeq is iterated: no compaction */
+    struct TsExecs *ts; /* TS-order execution list (exec_ts.c) */
+    void *cluster_scratch; /* cluster_ts.c */
+#endif
 
     Subsystems *sub; /* per-subsystem state owned by units/ships/nukes/rail/ai */
 };
@@ -390,6 +419,12 @@ static inline bool tile_is_border(const OfeGame *g, TileRef t) { return tile_bor
  * lists, fallout, events. No-op if already owned by `owner`. */
 void tile_set_owner(OfeGame *g, TileRef t, PlayerId owner);
 void tile_set_fallout(OfeGame *g, TileRef t, bool fallout);
+#if OFE_TS_PARITY
+void tileseq_free(TileSeq *s);
+void tileseq_copy(TileSeq *dst, const TileSeq *src);
+static inline void tile_seq_iter_begin(OfeGame *g) { g->seq_iter++; }
+static inline void tile_seq_iter_end(OfeGame *g) { g->seq_iter--; }
+#endif
 /* Does t have a 4-neighbour owned by p? */
 bool tile_borders_player(const OfeGame *g, TileRef t, PlayerId p);
 /* Fresh flood-fill stamp. visit_stamp[t] == gen marks t visited. */
@@ -425,6 +460,12 @@ void player_stop_embargo(OfeGame *g, PlayerId from, PlayerId to);
 /* Conquest bookkeeping when `conquered` is wiped out (gold transfer etc). */
 void player_conquered(OfeGame *g, PlayerId conqueror, PlayerId conquered);
 void players_tick(OfeGame *g); /* growth, expiry, death checks */
+#if OFE_TS_PARITY
+bool player_exec_tick_ts(OfeGame *g, PlayerId p);
+void player_decay_relations(OfeGame *g, PlayerId p);
+void alliances_expire_of(OfeGame *g, PlayerId p);
+void alliance_requests_tick(OfeGame *g);
+#endif
 
 /* Alliances */
 int32_t alliance_find(const OfeGame *g, PlayerId a, PlayerId b); /* index or -1 */
@@ -446,6 +487,8 @@ void player_donate_gold(OfeGame *g, PlayerId from, PlayerId to, double gold);
 int32_t attack_start(OfeGame *g, PlayerId attacker, PlayerId target, double troops, TileRef source_tile, bool remove_troops);
 void attack_order_retreat(OfeGame *g, PlayerId owner, int32_t attack_id);
 void attacks_tick(OfeGame *g);
+void attack_tick_row(OfeGame *g, int32_t row); /* one attack's tick */
+int32_t attack_row_by_id(const OfeGame *g, int32_t id); /* -1 if gone */
 /* Sum of troops in outgoing attacks of p. */
 double attack_outgoing_troops(const OfeGame *g, PlayerId p);
 int32_t attack_count_outgoing(const OfeGame *g, PlayerId p);
@@ -454,6 +497,13 @@ double attack_troops_against(const OfeGame *g, PlayerId attacker, PlayerId targe
 
 /* ---- cluster.c ---- */
 void cluster_check_player(OfeGame *g, PlayerId p);
+#if OFE_TS_PARITY
+void cluster_check_player_ts(OfeGame *g, PlayerId p); /* cluster_ts.c */
+void cluster_ts_free(OfeGame *g);
+void game_tick_ts(OfeGame *g); /* exec_ts.c: one tick of the TS execution list */
+void ts_execs_free(OfeGame *g);
+void ts_execs_copy(OfeGame *dst, const OfeGame *src);
+#endif
 
 /* ---- spawn.c ---- */
 /* Spawns (or respawns, during the spawn phase) p around center. Returns true

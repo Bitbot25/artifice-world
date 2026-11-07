@@ -18,27 +18,33 @@
 
 static bool tile_is_free_land(const OfeGame *g, TileRef t) { return map_is_ownable(g->map, t) && !tile_has_owner(g, t); }
 
-/* Disc tiles around center. require_all: fail if any disc tile is not free
- * land. Returns the count (0 = failure). */
-static int32_t spawn_disc(const OfeGame *g, TileRef center, bool require_all, IntVec *out) {
+/* Disc tiles around center, in the breadth-first order OpenFront's
+ * getSpawnTiles visits them (up, down, left, right neighbours): the order
+ * decides the owner's border list. require_all: fail if any disc tile is not
+ * free land. Returns the count (0 = failure). */
+static int32_t spawn_disc(OfeGame *g, TileRef center, bool require_all, IntVec *out) {
     const OfeMap *m = g->map;
+    IntVec *queue = &g->scratch_b;
+    queue->len = 0;
     out->len = 0;
     double cx = map_x(m, center) - 0.5, cy = map_y(m, center) - 0.5;
-    int32_t x0 = map_x(m, center), y0 = map_y(m, center);
-    for (int32_t y = y0 - SPAWN_RADIUS - 1; y <= y0 + SPAWN_RADIUS + 1; y++) {
-        for (int32_t x = x0 - SPAWN_RADIUS - 1; x <= x0 + SPAWN_RADIUS + 1; x++) {
-            double dx = x - cx, dy = y - cy;
-            if (dx * dx + dy * dy > SPAWN_RADIUS * SPAWN_RADIUS) continue;
-            if (!map_in_bounds(m, x, y)) {
-                if (require_all) return 0;
-                continue;
-            }
-            TileRef t = map_ref(m, x, y);
-            if (!tile_is_free_land(g, t)) {
-                if (require_all) return 0;
-                continue;
-            }
+    uint32_t gen = tiles_new_visit_gen(g);
+    g->visit_stamp[center] = gen;
+    IntVec_push(queue, center);
+    for (int32_t head = 0; head < queue->len; head++) {
+        TileRef t = queue->data[head];
+        if (!tile_is_free_land(g, t)) {
+            if (require_all) return 0;
+        } else {
             IntVec_push(out, t);
+        }
+        TileRef nb[4];
+        int n = map_neighbors4(m, t, nb);
+        for (int i = 0; i < n; i++) {
+            double dx = map_x(m, nb[i]) - cx, dy = map_y(m, nb[i]) - cy;
+            if (g->visit_stamp[nb[i]] == gen || dx * dx + dy * dy > SPAWN_RADIUS * SPAWN_RADIUS) continue;
+            g->visit_stamp[nb[i]] = gen;
+            IntVec_push(queue, nb[i]);
         }
     }
     return out->len;
@@ -78,7 +84,12 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
 
     bool ok = false;
     if (center >= 0 && center < g->map->num_tiles) ok = spawn_disc(g, center, false, &disc) > 0;
+#if OFE_TS_PARITY
+    /* TS: a spawn on a chosen tile never falls back to a random spot. */
+    if (!ok && center < 0) {
+#else
     if (!ok) {
+#endif
         center = spawn_random_tile(g, p, &g->rng);
         ok = center >= 0 && spawn_disc(g, center, true, &disc) > 0;
     }
@@ -92,9 +103,9 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     for (int32_t i = 0; i < disc.len; i++) tile_set_owner(g, disc.data[i], p);
     bool first = !pl->spawned[p];
     if (first) {
-        /* Stagger enclave checks across players like OpenFront (which
-         * offsets each player's 20-tick cycle by a hash of its id). */
-        pl->cluster_calc_tick[p] = g->tick + (int32_t)(((uint32_t)p * 2654435761u) >> 16) % 20;
+        /* Stagger enclave checks across players like OpenFront, which
+         * offsets each player's 20-tick cycle by simpleHash(player id). */
+        pl->cluster_calc_tick[p] = g->tick + (int32_t)(pl->id_hash[p] % 20);
     }
     pl->spawned[p] = 1;
     pl->dead[p] = 0;
