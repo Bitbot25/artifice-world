@@ -51,7 +51,11 @@ void unit_capture(OfeGame *g, UnitId id, PlayerId new_owner);
 /* Slot of a live unit, or -1 if the id is stale / invalid. */
 int32_t unit_lookup(const OfeGame *g, UnitId id);
 static inline UnitId unit_id_of_slot(const OfeGame *g, int32_t slot) {
+#if OFE_TS_PARITY
+    return g->units.uid[slot]; /* OpenFront's unit id */
+#else
     return ((int32_t)g->units.generation[slot] << UNIT_SLOT_BITS) | slot;
+#endif
 }
 /* Puts a new structure under construction until end_tick. */
 void unit_begin_construction(OfeGame *g, int32_t slot, int32_t end_tick);
@@ -60,6 +64,11 @@ void unit_finish_construction(OfeGame *g, int32_t slot);
 void unit_set_level(OfeGame *g, int32_t slot, int level);
 void unit_move(OfeGame *g, int32_t slot, TileRef tile);
 
+#if OFE_TS_PARITY
+/* units.c: bookkeeping of the parity columns (uid, list order, grid order). */
+void unit_ts_register(OfeGame *g, int32_t slot);
+void unit_ts_moved(OfeGame *g, int32_t slot, TileRef to);
+#endif
 bool unit_is_structure(int type);
 /* Gold cost of the next unit (extra = units already being paid for). */
 int64_t unit_cost(const OfeGame *g, PlayerId p, int type);
@@ -93,6 +102,12 @@ TileRef structures_can_build(const OfeGame *g, PlayerId p, int type, TileRef til
 UnitId structures_build(OfeGame *g, PlayerId p, int type, TileRef tile, int32_t amount, int32_t flags);
 bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount);
 bool structures_delete(OfeGame *g, PlayerId p, UnitId id);
+/* Construction time of a structure type in ticks (0 with instant build), whether it can be
+ * upgraded, and the per-player delete cooldown. */
+int32_t structure_construction_ticks(const OfeGame *g, int type);
+bool structure_upgradable(int type);
+bool structures_delete_ready(const OfeGame *g, PlayerId p);
+void structures_delete_record(OfeGame *g, PlayerId p);
 
 /* Spatial index of structures. unit_create / unit_destroy call the first two
  * (they ignore other unit types); units_has_nearby / units_nearby use the

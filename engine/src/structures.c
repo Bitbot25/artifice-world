@@ -21,8 +21,6 @@
  *     duration + 1 ticks, an artefact of its execution ordering).
  *   - Only structures can be deleted (TS lets any unit on owned land be
  *     marked, which only matters for trains).
- *   - Ties between equally near placement tiles go to the first one found
- *     by a breadth-first flood instead of TS's depth-first order.
  *   - A BUILD_UNIT intent for a structure always builds one, as in TS
  *     (`amount` only multiplies nukes there); `amount` buys several levels
  *     for upgrades only.
@@ -58,7 +56,7 @@ struct StructuresState {
     PendingDeletionVec deletions;
     int32_t *last_delete; /* per player: tick of the last delete order, -1 = never */
     int32_t last_delete_cap;
-    IntVec scratch_units, scratch_queue; /* query scratch, not game state */
+    IntVec scratch_units, scratch_queue, scratch_stack; /* query scratch, not game state */
 };
 
 /* ---- Per-type constants --------------------------------------------------- */
@@ -75,7 +73,11 @@ static int32_t construction_ticks(int type) {
     }
 }
 
-static bool upgradable(int type) {
+int32_t structure_construction_ticks(const OfeGame *g, int type) {
+    return g->cfg.instant_build ? 0 : construction_ticks(type);
+}
+
+bool structure_upgradable(int type) {
     return type == OFE_UNIT_PORT || type == OFE_UNIT_MISSILE_SILO || type == OFE_UNIT_SAM_LAUNCHER ||
            type == OFE_UNIT_CITY || type == OFE_UNIT_FACTORY;
 }
@@ -130,6 +132,7 @@ void structures_state_free(OfeGame *g) {
     free(s->last_delete);
     IntVec_free(&s->scratch_units);
     IntVec_free(&s->scratch_queue);
+    IntVec_free(&s->scratch_stack);
     free(s);
     g->sub->structures = NULL;
 }
@@ -238,7 +241,11 @@ static bool blocked_by_structure(const OfeGame *g, TileRef t, const IntVec *near
     return false;
 }
 
-/* The tile closest to `tile` where p may put a structure, or -1. */
+/* PlayerImpl.validStructureSpawnTiles + its first entry: the tile closest to
+ * `tile` where p may put a structure, or -1. TS floods p's land within 15
+ * tiles with a depth-first stack (neighbours pushed north, south, west, east),
+ * drops tiles within 15 of any structure, and takes the closest by a stable
+ * sort, so among equally near tiles the one the flood found first wins. */
 static TileRef find_structure_tile(const OfeGame *g, PlayerId p, TileRef tile, bool need_shore) {
     if (tile_owner(g, tile) != p) return -1;
     StructuresState *s = g->sub->structures;
@@ -253,31 +260,34 @@ static TileRef find_structure_tile(const OfeGame *g, PlayerId p, TileRef tile, b
 
     if ((!need_shore || map_is_shore(m, tile)) && !blocked_by_structure(g, tile, near)) return tile;
 
-    /* Flood the player's land around the request and keep the nearest
-     * unblocked tile. */
     int64_t radius2 = (int64_t)STRUCTURE_MIN_DIST * STRUCTURE_MIN_DIST;
     OfeGame *mg = (OfeGame *)g; /* only the visit-stamp scratch is written */
     uint32_t gen = tiles_new_visit_gen(mg);
-    IntVec *queue = &s->scratch_queue;
-    queue->len = 0;
-    IntVec_push(queue, tile);
+    IntVec *found = &s->scratch_queue, *stack = &s->scratch_stack;
+    found->len = stack->len = 0;
+    IntVec_push(found, tile);
+    IntVec_push(stack, tile);
     mg->visit_stamp[tile] = gen;
     TileRef best = -1;
     int64_t best_d = 0;
-    for (int32_t head = 0; head < queue->len; head++) {
-        TileRef t = queue->data[head];
-        int64_t d = map_dist2(m, t, tile);
-        if ((best < 0 || d < best_d) && (!need_shore || map_is_shore(m, t)) && !blocked_by_structure(g, t, near)) {
-            best = t;
-            best_d = d;
-        }
+    while (stack->len > 0) {
+        TileRef t = stack->data[--stack->len];
         TileRef nb[4];
         int k = map_neighbors4(m, t, nb);
         for (int i = 0; i < k; i++) {
             TileRef n = nb[i];
             if (mg->visit_stamp[n] == gen || tile_owner(g, n) != p || map_dist2(m, n, tile) >= radius2) continue;
             mg->visit_stamp[n] = gen;
-            IntVec_push(queue, n);
+            IntVec_push(found, n);
+            IntVec_push(stack, n);
+        }
+    }
+    for (int32_t i = 0; i < found->len; i++) {
+        TileRef t = found->data[i];
+        int64_t d = map_dist2(m, t, tile);
+        if ((best < 0 || d < best_d) && (!need_shore || map_is_shore(m, t)) && !blocked_by_structure(g, t, near)) {
+            best = t;
+            best_d = d;
         }
     }
     return best;
@@ -425,7 +435,7 @@ bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount) {
     int32_t slot = unit_lookup(g, id);
     if (slot < 0 || !player_valid(g, p) || g->units.owner[slot] != p) return false;
     int type = g->units.type[slot];
-    if (!upgradable(type) || (g->cfg.disabled_units & (1u << type)) || !player_alive(g, p)) return false;
+    if (!structure_upgradable(type) || (g->cfg.disabled_units & (1u << type)) || !player_alive(g, p)) return false;
     if (g->units.flags[slot] & (OFE_UF_UNDER_CONSTRUCTION | OFE_UF_MARKED_FOR_DELETION)) return false;
     bool any = false;
     for (int32_t i = 0; i < OFE_CLAMP(amount, 1, MAX_UPGRADE_AMOUNT) && g->units.level[slot] < 255; i++) {
@@ -441,6 +451,14 @@ bool structures_upgrade(OfeGame *g, PlayerId p, UnitId id, int32_t amount) {
     return any;
 }
 
+/* PlayerImpl.canDeleteUnit / recordDeleteUnit: the 30 s cooldown counts from tick -1,
+ * so nobody can delete during the first 299 ticks. */
+bool structures_delete_ready(const OfeGame *g, PlayerId p) {
+    return g->tick - g->sub->structures->last_delete[p] >= DELETE_COOLDOWN_TICKS;
+}
+
+void structures_delete_record(OfeGame *g, PlayerId p) { g->sub->structures->last_delete[p] = g->tick; }
+
 bool structures_delete(OfeGame *g, PlayerId p, UnitId id) {
     int32_t slot = unit_lookup(g, id);
     if (slot < 0 || !player_valid(g, p) || g->units.owner[slot] != p) return false;
@@ -448,8 +466,8 @@ bool structures_delete(OfeGame *g, PlayerId p, UnitId id) {
     if (!unit_is_structure(u->type[slot]) || (u->flags[slot] & OFE_UF_MARKED_FOR_DELETION)) return false;
     if (tile_owner(g, u->tile[slot]) != p || game_in_spawn_phase(g)) return false;
     StructuresState *s = g->sub->structures;
-    if (s->last_delete[p] >= 0 && g->tick - s->last_delete[p] < DELETE_COOLDOWN_TICKS) return false;
-    s->last_delete[p] = g->tick;
+    if (!structures_delete_ready(g, p)) return false;
+    structures_delete_record(g, p);
     g->units.flags[slot] |= OFE_UF_MARKED_FOR_DELETION;
     PendingDeletion d = {id, p, g->tick + DELETION_MARK_TICKS};
     PendingDeletionVec_push(&s->deletions, d);

@@ -1,0 +1,3072 @@
+{
+ "map": "world",
+ "map_size": "compact",
+ "game_id": "UNITS001",
+ "difficulty": "medium",
+ "nations": "disabled",
+ "bots": 0,
+ "humans": 8,
+ "name": "units_structures",
+ "description": "8 humans: expansion, every structure but port and factory built (costs scale with count), upgrades with amount > 1, deletions, structures captured and destroyed in wars.",
+ "ticks": 4500,
+ "ts_config": {
+  "startingGold": 3000000,
+  "customAllianceDuration": 1
+ },
+ "c_config": {
+  "starting_gold": 3000000,
+  "alliance_duration_minutes": 1
+ },
+ "intents": [
+  {
+   "tick": 0,
+   "player": 1,
+   "type": "spawn",
+   "x": 495,
+   "y": 97
+  },
+  {
+   "tick": 0,
+   "player": 2,
+   "type": "spawn",
+   "x": 474,
+   "y": 110
+  },
+  {
+   "tick": 0,
+   "player": 3,
+   "type": "spawn",
+   "x": 515,
+   "y": 96
+  },
+  {
+   "tick": 0,
+   "player": 4,
+   "type": "spawn",
+   "x": 507,
+   "y": 68
+  },
+  {
+   "tick": 0,
+   "player": 5,
+   "type": "spawn",
+   "x": 484,
+   "y": 66
+  },
+  {
+   "tick": 0,
+   "player": 6,
+   "type": "spawn",
+   "x": 541,
+   "y": 63
+  },
+  {
+   "tick": 0,
+   "player": 7,
+   "type": "spawn",
+   "x": 551,
+   "y": 91
+  },
+  {
+   "tick": 0,
+   "player": 8,
+   "type": "spawn",
+   "x": 567,
+   "y": 105
+  },
+  {
+   "tick": 207,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 8953
+  },
+  {
+   "tick": 216,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 10959
+  },
+  {
+   "tick": 225,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 15769
+  },
+  {
+   "tick": 234,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 12368
+  },
+  {
+   "tick": 243,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 14049
+  },
+  {
+   "tick": 252,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 16217
+  },
+  {
+   "tick": 261,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 12001
+  },
+  {
+   "tick": 270,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 17889
+  },
+  {
+   "tick": 279,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 17859
+  },
+  {
+   "tick": 288,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 20902
+  },
+  {
+   "tick": 297,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 10393
+  },
+  {
+   "tick": 306,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 16271
+  },
+  {
+   "tick": 315,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 13313
+  },
+  {
+   "tick": 324,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 31436
+  },
+  {
+   "tick": 333,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 29009
+  },
+  {
+   "tick": 342,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 14342
+  },
+  {
+   "tick": 351,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 32277
+  },
+  {
+   "tick": 360,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 30363
+  },
+  {
+   "tick": 369,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 29650
+  },
+  {
+   "tick": 378,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 34552
+  },
+  {
+   "tick": 387,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 23798
+  },
+  {
+   "tick": 396,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 20691
+  },
+  {
+   "tick": 405,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 38411
+  },
+  {
+   "tick": 414,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 21537
+  },
+  {
+   "tick": 423,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 19404
+  },
+  {
+   "tick": 432,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 32406
+  },
+  {
+   "tick": 441,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 25808
+  },
+  {
+   "tick": 450,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 46090
+  },
+  {
+   "tick": 459,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 46721
+  },
+  {
+   "tick": 468,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 55468
+  },
+  {
+   "tick": 477,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 53818
+  },
+  {
+   "tick": 486,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 51699
+  },
+  {
+   "tick": 495,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 39128
+  },
+  {
+   "tick": 504,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 64508
+  },
+  {
+   "tick": 513,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 56619
+  },
+  {
+   "tick": 522,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 49394
+  },
+  {
+   "tick": 531,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 87932
+  },
+  {
+   "tick": 540,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 67412
+  },
+  {
+   "tick": 549,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 83813
+  },
+  {
+   "tick": 558,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 58704
+  },
+  {
+   "tick": 567,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 40418
+  },
+  {
+   "tick": 576,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 52084
+  },
+  {
+   "tick": 585,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 57697
+  },
+  {
+   "tick": 594,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 44419
+  },
+  {
+   "tick": 603,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 85969
+  },
+  {
+   "tick": 612,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 45443
+  },
+  {
+   "tick": 621,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 94397
+  },
+  {
+   "tick": 630,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 48397
+  },
+  {
+   "tick": 639,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 83750
+  },
+  {
+   "tick": 648,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 97329
+  },
+  {
+   "tick": 657,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 44627
+  },
+  {
+   "tick": 666,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 57156
+  },
+  {
+   "tick": 675,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 101430
+  },
+  {
+   "tick": 684,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 49581
+  },
+  {
+   "tick": 693,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 109406
+  },
+  {
+   "tick": 702,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 731,
+   "y": 79
+  },
+  {
+   "tick": 720,
+   "player": 1,
+   "type": "attack",
+   "target": 3,
+   "troops": 106084
+  },
+  {
+   "tick": 729,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 458,
+   "y": 126
+  },
+  {
+   "tick": 738,
+   "player": 3,
+   "type": "attack",
+   "target": 1,
+   "troops": 69748
+  },
+  {
+   "tick": 747,
+   "player": 4,
+   "type": "attack",
+   "target": 5,
+   "troops": 73435
+  },
+  {
+   "tick": 756,
+   "player": 5,
+   "type": "attack",
+   "target": 4,
+   "troops": 77709
+  },
+  {
+   "tick": 765,
+   "player": 6,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 572,
+   "y": 51
+  },
+  {
+   "tick": 783,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 161859
+  },
+  {
+   "tick": 792,
+   "player": 1,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 490,
+   "y": 101
+  },
+  {
+   "tick": 801,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 477,
+   "y": 103
+  },
+  {
+   "tick": 810,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 535,
+   "y": 120
+  },
+  {
+   "tick": 837,
+   "player": 6,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 568,
+   "y": 52
+  },
+  {
+   "tick": 846,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 119362
+  },
+  {
+   "tick": 855,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 589,
+   "y": 153
+  },
+  {
+   "tick": 864,
+   "player": 1,
+   "type": "delete_unit",
+   "unit": 4
+  },
+  {
+   "tick": 873,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 5
+  },
+  {
+   "tick": 882,
+   "player": 3,
+   "type": "delete_unit",
+   "unit": 6
+  },
+  {
+   "tick": 909,
+   "player": 6,
+   "type": "upgrade_structure",
+   "unit": 7,
+   "amount": 1
+  },
+  {
+   "tick": 918,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 1
+  },
+  {
+   "tick": 936,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 60295
+  },
+  {
+   "tick": 945,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 478,
+   "y": 100
+  },
+  {
+   "tick": 954,
+   "player": 3,
+   "type": "upgrade_structure",
+   "unit": 6,
+   "amount": 1
+  },
+  {
+   "tick": 963,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 522,
+   "y": 48
+  },
+  {
+   "tick": 972,
+   "player": 5,
+   "type": "attack",
+   "target": 4,
+   "troops": 56254
+  },
+  {
+   "tick": 981,
+   "player": 6,
+   "type": "attack",
+   "target": 0,
+   "troops": 148091
+  },
+  {
+   "tick": 990,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 727,
+   "y": 39
+  },
+  {
+   "tick": 999,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 626,
+   "y": 191
+  },
+  {
+   "tick": 1008,
+   "player": 1,
+   "type": "delete_unit",
+   "unit": 4
+  },
+  {
+   "tick": 1017,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 479,
+   "y": 107
+  },
+  {
+   "tick": 1026,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 533,
+   "y": 120
+  },
+  {
+   "tick": 1035,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 515,
+   "y": 43
+  },
+  {
+   "tick": 1044,
+   "player": 5,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 503,
+   "y": 65
+  },
+  {
+   "tick": 1053,
+   "player": 6,
+   "type": "attack",
+   "target": 7,
+   "troops": 272904
+  },
+  {
+   "tick": 1071,
+   "player": 8,
+   "type": "delete_unit",
+   "unit": 8
+  },
+  {
+   "tick": 1080,
+   "player": 1,
+   "type": "upgrade_structure",
+   "unit": 4,
+   "amount": 2
+  },
+  {
+   "tick": 1098,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 524,
+   "y": 108
+  },
+  {
+   "tick": 1107,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 527,
+   "y": 42
+  },
+  {
+   "tick": 1116,
+   "player": 5,
+   "type": "upgrade_structure",
+   "unit": 14,
+   "amount": 1
+  },
+  {
+   "tick": 1134,
+   "player": 7,
+   "type": "attack",
+   "target": 6,
+   "troops": 552621
+  },
+  {
+   "tick": 1152,
+   "player": 1,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 499,
+   "y": 114
+  },
+  {
+   "tick": 1170,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 539,
+   "y": 103
+  },
+  {
+   "tick": 1179,
+   "player": 4,
+   "type": "attack",
+   "target": 6,
+   "troops": 147740
+  },
+  {
+   "tick": 1188,
+   "player": 5,
+   "type": "delete_unit",
+   "unit": 14
+  },
+  {
+   "tick": 1197,
+   "player": 1,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 528,
+   "y": 113
+  },
+  {
+   "tick": 1206,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 478837
+  },
+  {
+   "tick": 1215,
+   "player": 3,
+   "type": "attack",
+   "target": 7,
+   "troops": 163969
+  },
+  {
+   "tick": 1224,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 61698
+  },
+  {
+   "tick": 1233,
+   "player": 5,
+   "type": "attack",
+   "target": 4,
+   "troops": 75308
+  },
+  {
+   "tick": 1242,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 724,
+   "y": 42
+  },
+  {
+   "tick": 1251,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 339219
+  },
+  {
+   "tick": 1260,
+   "player": 1,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 521,
+   "y": 128
+  },
+  {
+   "tick": 1269,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 129210
+  },
+  {
+   "tick": 1278,
+   "player": 7,
+   "type": "attack",
+   "target": 4,
+   "troops": 465296
+  },
+  {
+   "tick": 1287,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 8,
+   "amount": 2
+  },
+  {
+   "tick": 1296,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 1
+  },
+  {
+   "tick": 1305,
+   "player": 3,
+   "type": "delete_unit",
+   "unit": 18
+  },
+  {
+   "tick": 1314,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 1316,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1323,
+   "player": 5,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 506,
+   "y": 66
+  },
+  {
+   "tick": 1332,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 312928
+  },
+  {
+   "tick": 1341,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 438236
+  },
+  {
+   "tick": 1350,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 535,
+   "y": 122
+  },
+  {
+   "tick": 1359,
+   "player": 3,
+   "type": "delete_unit",
+   "unit": 15
+  },
+  {
+   "tick": 1368,
+   "player": 4,
+   "type": "attack",
+   "target": 5,
+   "troops": 142240
+  },
+  {
+   "tick": 1377,
+   "player": 5,
+   "type": "attack",
+   "target": 0,
+   "troops": 32736
+  },
+  {
+   "tick": 1386,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 10
+  },
+  {
+   "tick": 1395,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 7,
+   "amount": 5
+  },
+  {
+   "tick": 1404,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 532,
+   "y": 69
+  },
+  {
+   "tick": 1413,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 503,
+   "y": 42
+  },
+  {
+   "tick": 1431,
+   "player": 8,
+   "type": "delete_unit",
+   "unit": 7
+  },
+  {
+   "tick": 1449,
+   "player": 3,
+   "type": "attack",
+   "target": 2,
+   "troops": 347278
+  },
+  {
+   "tick": 1458,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 486,
+   "y": 75
+  },
+  {
+   "tick": 1467,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 190565
+  },
+  {
+   "tick": 1476,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 303938
+  },
+  {
+   "tick": 1485,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 1
+  },
+  {
+   "tick": 1494,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 522,
+   "y": 111
+  },
+  {
+   "tick": 1503,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 23,
+   "amount": 3
+  },
+  {
+   "tick": 1521,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 170104
+  },
+  {
+   "tick": 1539,
+   "player": 3,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 1
+  },
+  {
+   "tick": 1548,
+   "player": 4,
+   "type": "attack",
+   "target": 3,
+   "troops": 199110
+  },
+  {
+   "tick": 1557,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1559,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 1575,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 2
+  },
+  {
+   "tick": 1593,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 115664
+  },
+  {
+   "tick": 1602,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 850,
+   "y": 108
+  },
+  {
+   "tick": 1611,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 7,
+   "amount": 3
+  },
+  {
+   "tick": 1629,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 548,
+   "y": 79
+  },
+  {
+   "tick": 1638,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 511,
+   "y": 49
+  },
+  {
+   "tick": 1647,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 3
+  },
+  {
+   "tick": 1656,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 20,
+   "amount": 1
+  },
+  {
+   "tick": 1665,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 2
+  },
+  {
+   "tick": 1674,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 162002
+  },
+  {
+   "tick": 1683,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 493,
+   "y": 67
+  },
+  {
+   "tick": 1692,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 766,
+   "y": 74
+  },
+  {
+   "tick": 1701,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 687,
+   "y": 116
+  },
+  {
+   "tick": 1710,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 496,
+   "y": 118
+  },
+  {
+   "tick": 1719,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 537,
+   "y": 122
+  },
+  {
+   "tick": 1728,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 16,
+   "amount": 1
+  },
+  {
+   "tick": 1737,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 25,
+   "amount": 1
+  },
+  {
+   "tick": 1755,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 2
+  },
+  {
+   "tick": 1764,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 527,
+   "y": 112
+  },
+  {
+   "tick": 1773,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 523,
+   "y": 44
+  },
+  {
+   "tick": 1791,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 571,
+   "y": 47
+  },
+  {
+   "tick": 1800,
+   "player": 2,
+   "type": "attack",
+   "target": 3,
+   "troops": 616580
+  },
+  {
+   "tick": 1809,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 537,
+   "y": 120
+  },
+  {
+   "tick": 1818,
+   "player": 4,
+   "type": "attack",
+   "target": 8,
+   "troops": 288173
+  },
+  {
+   "tick": 1827,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 25
+  },
+  {
+   "tick": 1836,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 3,
+   "amount": 5
+  },
+  {
+   "tick": 1845,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 518,
+   "y": 99
+  },
+  {
+   "tick": 1854,
+   "player": 3,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 523,
+   "y": 129
+  },
+  {
+   "tick": 1863,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 603,
+   "y": 62
+  },
+  {
+   "tick": 1872,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 490,
+   "y": 99
+  },
+  {
+   "tick": 1881,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1883,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1890,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 369275
+  },
+  {
+   "tick": 1899,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 11,
+   "amount": 5
+  },
+  {
+   "tick": 1908,
+   "player": 2,
+   "type": "attack",
+   "target": 8,
+   "troops": 402441
+  },
+  {
+   "tick": 1917,
+   "player": 4,
+   "type": "delete_unit",
+   "unit": 23
+  },
+  {
+   "tick": 1926,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 811,
+   "y": 108
+  },
+  {
+   "tick": 1935,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 568,
+   "y": 94
+  },
+  {
+   "tick": 1944,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 1
+  },
+  {
+   "tick": 1953,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 23,
+   "amount": 1
+  },
+  {
+   "tick": 1962,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 184557
+  },
+  {
+   "tick": 1971,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 572,
+   "y": 48
+  },
+  {
+   "tick": 1980,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 3
+  },
+  {
+   "tick": 1989,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 528,
+   "y": 69
+  },
+  {
+   "tick": 1998,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 3
+  },
+  {
+   "tick": 2007,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 714,
+   "y": 46
+  },
+  {
+   "tick": 2016,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 2
+  },
+  {
+   "tick": 2025,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 22,
+   "amount": 5
+  },
+  {
+   "tick": 2034,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 786,
+   "y": 91
+  },
+  {
+   "tick": 2043,
+   "player": 8,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 2045,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 8
+  },
+  {
+   "tick": 2052,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 8
+  },
+  {
+   "tick": 2054,
+   "player": 8,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 2070,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 25,
+   "amount": 5
+  },
+  {
+   "tick": 2079,
+   "player": 8,
+   "type": "delete_unit",
+   "unit": 10
+  },
+  {
+   "tick": 2088,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 394627
+  },
+  {
+   "tick": 2115,
+   "player": 8,
+   "type": "attack",
+   "target": 4,
+   "troops": 393992
+  },
+  {
+   "tick": 2124,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 510,
+   "y": 128
+  },
+  {
+   "tick": 2133,
+   "player": 4,
+   "type": "attack",
+   "target": 8,
+   "troops": 519051
+  },
+  {
+   "tick": 2142,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 938,
+   "y": 51
+  },
+  {
+   "tick": 2151,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 620,
+   "y": 182
+  },
+  {
+   "tick": 2160,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 524,
+   "y": 115
+  },
+  {
+   "tick": 2169,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 574,
+   "y": 70
+  },
+  {
+   "tick": 2178,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 763,
+   "y": 183
+  },
+  {
+   "tick": 2187,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 660,
+   "y": 169
+  },
+  {
+   "tick": 2196,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 533,
+   "y": 123
+  },
+  {
+   "tick": 2205,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 3,
+   "amount": 1
+  },
+  {
+   "tick": 2223,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 731,
+   "y": 43
+  },
+  {
+   "tick": 2232,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 5
+  },
+  {
+   "tick": 2241,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 206626
+  },
+  {
+   "tick": 2250,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 5
+  },
+  {
+   "tick": 2259,
+   "player": 8,
+   "type": "delete_unit",
+   "unit": 20
+  },
+  {
+   "tick": 2268,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 542,
+   "y": 106
+  },
+  {
+   "tick": 2277,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 326093
+  },
+  {
+   "tick": 2286,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 24
+  },
+  {
+   "tick": 2304,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 3
+  },
+  {
+   "tick": 2313,
+   "player": 4,
+   "type": "delete_unit",
+   "unit": 9
+  },
+  {
+   "tick": 2322,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 2
+  },
+  {
+   "tick": 2331,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 10,
+   "amount": 2
+  },
+  {
+   "tick": 2340,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 567,
+   "y": 105
+  },
+  {
+   "tick": 2349,
+   "player": 4,
+   "type": "upgrade_structure",
+   "unit": 14,
+   "amount": 1
+  },
+  {
+   "tick": 2358,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 8
+  },
+  {
+   "tick": 2360,
+   "player": 8,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 2367,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 683,
+   "y": 102
+  },
+  {
+   "tick": 2376,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 442,
+   "y": 136
+  },
+  {
+   "tick": 2385,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 575,
+   "y": 49
+  },
+  {
+   "tick": 2403,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 435191
+  },
+  {
+   "tick": 2412,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 536,
+   "y": 102
+  },
+  {
+   "tick": 2421,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 525,
+   "y": 59
+  },
+  {
+   "tick": 2430,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 853,
+   "y": 108
+  },
+  {
+   "tick": 2439,
+   "player": 8,
+   "type": "delete_unit",
+   "unit": 28
+  },
+  {
+   "tick": 2448,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 491,
+   "y": 104
+  },
+  {
+   "tick": 2475,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 658,
+   "y": 100
+  },
+  {
+   "tick": 2484,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 796310
+  },
+  {
+   "tick": 2493,
+   "player": 4,
+   "type": "delete_unit",
+   "unit": 14
+  },
+  {
+   "tick": 2502,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 2
+  },
+  {
+   "tick": 2511,
+   "player": 8,
+   "type": "attack",
+   "target": 4,
+   "troops": 685473
+  },
+  {
+   "tick": 2520,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 1
+  },
+  {
+   "tick": 2529,
+   "player": 4,
+   "type": "delete_unit",
+   "unit": 3
+  },
+  {
+   "tick": 2538,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 935,
+   "y": 50
+  },
+  {
+   "tick": 2547,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 20,
+   "amount": 1
+  },
+  {
+   "tick": 2565,
+   "player": 4,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 579,
+   "y": 52
+  },
+  {
+   "tick": 2574,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 24,
+   "amount": 1
+  },
+  {
+   "tick": 2583,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 627,
+   "y": 46
+  },
+  {
+   "tick": 2592,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 447157
+  },
+  {
+   "tick": 2601,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 143706
+  },
+  {
+   "tick": 2619,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 32,
+   "amount": 3
+  },
+  {
+   "tick": 2628,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 447895
+  },
+  {
+   "tick": 2637,
+   "player": 4,
+   "type": "attack",
+   "target": 8,
+   "troops": 57685
+  },
+  {
+   "tick": 2646,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 467871
+  },
+  {
+   "tick": 2655,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 840,
+   "y": 89
+  },
+  {
+   "tick": 2664,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 738,
+   "y": 158
+  },
+  {
+   "tick": 2673,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 15,
+   "amount": 3
+  },
+  {
+   "tick": 2682,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 935,
+   "y": 51
+  },
+  {
+   "tick": 2691,
+   "player": 8,
+   "type": "upgrade_structure",
+   "unit": 16,
+   "amount": 2
+  },
+  {
+   "tick": 2700,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 525,
+   "y": 105
+  },
+  {
+   "tick": 2709,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 741,
+   "y": 176
+  },
+  {
+   "tick": 2727,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 2
+  },
+  {
+   "tick": 2736,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 3
+  },
+  {
+   "tick": 2754,
+   "player": 2,
+   "type": "attack",
+   "target": 8,
+   "troops": 668170
+  },
+  {
+   "tick": 2763,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 145827
+  },
+  {
+   "tick": 2772,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 941965
+  },
+  {
+   "tick": 2781,
+   "player": 2,
+   "type": "attack",
+   "target": 8,
+   "troops": 954311
+  },
+  {
+   "tick": 2790,
+   "player": 7,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 1
+  },
+  {
+   "tick": 2799,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 603,
+   "y": 82
+  },
+  {
+   "tick": 2808,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 129614
+  },
+  {
+   "tick": 2817,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 833,
+   "y": 45
+  },
+  {
+   "tick": 2826,
+   "player": 8,
+   "type": "attack",
+   "target": 7,
+   "troops": 160139
+  },
+  {
+   "tick": 2835,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 15,
+   "amount": 1
+  },
+  {
+   "tick": 2844,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 753,
+   "y": 241
+  },
+  {
+   "tick": 2853,
+   "player": 8,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 819,
+   "y": 48
+  },
+  {
+   "tick": 2862,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 535,
+   "y": 73
+  },
+  {
+   "tick": 2871,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 755,
+   "y": 105
+  },
+  {
+   "tick": 2880,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 107308
+  },
+  {
+   "tick": 2889,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 636,
+   "y": 54
+  },
+  {
+   "tick": 2898,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 297788
+  },
+  {
+   "tick": 2907,
+   "player": 8,
+   "type": "attack",
+   "target": 0,
+   "troops": 133373
+  },
+  {
+   "tick": 2916,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 379615
+  },
+  {
+   "tick": 2925,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 161538
+  },
+  {
+   "tick": 2943,
+   "player": 2,
+   "type": "attack",
+   "target": 8,
+   "troops": 636174
+  },
+  {
+   "tick": 2952,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 132386
+  },
+  {
+   "tick": 2970,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 669,
+   "y": 115
+  },
+  {
+   "tick": 2979,
+   "player": 7,
+   "type": "attack",
+   "target": 8,
+   "troops": 188288
+  },
+  {
+   "tick": 2997,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 834,
+   "y": 55
+  },
+  {
+   "tick": 3006,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 527,
+   "y": 68
+  },
+  {
+   "tick": 3024,
+   "player": 2,
+   "type": "attack",
+   "target": 7,
+   "troops": 980492
+  },
+  {
+   "tick": 3042,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 585,
+   "y": 56
+  },
+  {
+   "tick": 3051,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 29
+  },
+  {
+   "tick": 3060,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 11
+  },
+  {
+   "tick": 3078,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 3080,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3087,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 739,
+   "y": 139
+  },
+  {
+   "tick": 3096,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 5
+  },
+  {
+   "tick": 3114,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 791,
+   "y": 88
+  },
+  {
+   "tick": 3141,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 767,
+   "y": 109
+  },
+  {
+   "tick": 3159,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 68467
+  },
+  {
+   "tick": 3168,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 2
+  },
+  {
+   "tick": 3186,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 735,
+   "y": 112
+  },
+  {
+   "tick": 3204,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 3
+  },
+  {
+   "tick": 3213,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 35
+  },
+  {
+   "tick": 3222,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 16,
+   "amount": 2
+  },
+  {
+   "tick": 3231,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 743,
+   "y": 143
+  },
+  {
+   "tick": 3240,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 742,
+   "y": 22
+  },
+  {
+   "tick": 3249,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 777,
+   "y": 95
+  },
+  {
+   "tick": 3258,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 581,
+   "y": 50
+  },
+  {
+   "tick": 3267,
+   "player": 7,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3269,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 7
+  },
+  {
+   "tick": 3276,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 510,
+   "y": 120
+  },
+  {
+   "tick": 3285,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 717,
+   "y": 143
+  },
+  {
+   "tick": 3294,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 503,
+   "y": 117
+  },
+  {
+   "tick": 3303,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 789,
+   "y": 121
+  },
+  {
+   "tick": 3312,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 639,
+   "y": 165
+  },
+  {
+   "tick": 3330,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 537,
+   "y": 36
+  },
+  {
+   "tick": 3348,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 585,
+   "y": 113
+  },
+  {
+   "tick": 3357,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 738,
+   "y": 137
+  },
+  {
+   "tick": 3366,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 739,
+   "y": 191
+  },
+  {
+   "tick": 3375,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 757,
+   "y": 133
+  },
+  {
+   "tick": 3393,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 786,
+   "y": 100
+  },
+  {
+   "tick": 3402,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 620,
+   "y": 182
+  },
+  {
+   "tick": 3420,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 32,
+   "amount": 1
+  },
+  {
+   "tick": 3429,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 737,
+   "y": 138
+  },
+  {
+   "tick": 3438,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 34,
+   "amount": 3
+  },
+  {
+   "tick": 3447,
+   "player": 7,
+   "type": "delete_unit",
+   "unit": 35
+  },
+  {
+   "tick": 3456,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 535,
+   "y": 122
+  },
+  {
+   "tick": 3474,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 514,
+   "y": 56
+  },
+  {
+   "tick": 3501,
+   "player": 7,
+   "type": "attack",
+   "target": 0,
+   "troops": 111708
+  },
+  {
+   "tick": 3510,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 659,
+   "y": 183
+  },
+  {
+   "tick": 3564,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 20
+  },
+  {
+   "tick": 3573,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 819,
+   "y": 140
+  },
+  {
+   "tick": 3582,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 13,
+   "amount": 3
+  },
+  {
+   "tick": 3591,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 722,
+   "y": 152
+  },
+  {
+   "tick": 3600,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 511,
+   "y": 44
+  },
+  {
+   "tick": 3609,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 737,
+   "y": 135
+  },
+  {
+   "tick": 3636,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 16,
+   "amount": 1
+  },
+  {
+   "tick": 3654,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 815,
+   "y": 55
+  },
+  {
+   "tick": 3663,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 785,
+   "y": 116
+  },
+  {
+   "tick": 3672,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 536,
+   "y": 118
+  },
+  {
+   "tick": 3681,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 821,
+   "y": 133
+  },
+  {
+   "tick": 3690,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 501,
+   "y": 62
+  },
+  {
+   "tick": 3708,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 519,
+   "y": 120
+  },
+  {
+   "tick": 3717,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 767,
+   "y": 125
+  },
+  {
+   "tick": 3726,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 799,
+   "y": 162
+  },
+  {
+   "tick": 3735,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 732,
+   "y": 140
+  },
+  {
+   "tick": 3744,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 855915
+  },
+  {
+   "tick": 3753,
+   "player": 7,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 719,
+   "y": 154
+  },
+  {
+   "tick": 3762,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 587,
+   "y": 53
+  },
+  {
+   "tick": 3771,
+   "player": 7,
+   "type": "attack",
+   "target": 2,
+   "troops": 242031
+  },
+  {
+   "tick": 3780,
+   "player": 2,
+   "type": "attack",
+   "target": 7,
+   "troops": 3299839
+  },
+  {
+   "tick": 3798,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 32,
+   "amount": 5
+  },
+  {
+   "tick": 3816,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 32,
+   "amount": 2
+  },
+  {
+   "tick": 3825,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 3
+  },
+  {
+   "tick": 3834,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 973813
+  },
+  {
+   "tick": 3843,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 642,
+   "y": 118
+  },
+  {
+   "tick": 3852,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 20,
+   "amount": 2
+  },
+  {
+   "tick": 3870,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 665,
+   "y": 168
+  },
+  {
+   "tick": 3879,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 600,
+   "y": 81
+  },
+  {
+   "tick": 3888,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3890,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3897,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 530,
+   "y": 42
+  },
+  {
+   "tick": 3915,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 22,
+   "amount": 5
+  },
+  {
+   "tick": 3924,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 935,
+   "y": 45
+  },
+  {
+   "tick": 3951,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3953,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3960,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3962,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 3969,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 19,
+   "amount": 1
+  },
+  {
+   "tick": 3987,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 3,
+   "amount": 1
+  },
+  {
+   "tick": 3996,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 521,
+   "y": 118
+  },
+  {
+   "tick": 4005,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 837,
+   "y": 92
+  },
+  {
+   "tick": 4014,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4016,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4023,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 503,
+   "y": 48
+  },
+  {
+   "tick": 4032,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4034,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4041,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 789,
+   "y": 181
+  },
+  {
+   "tick": 4050,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 22,
+   "amount": 1
+  },
+  {
+   "tick": 4059,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 527,
+   "y": 104
+  },
+  {
+   "tick": 4068,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 619,
+   "y": 178
+  },
+  {
+   "tick": 4086,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 749,
+   "y": 75
+  },
+  {
+   "tick": 4095,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4097,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 4104,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 610,
+   "y": 60
+  },
+  {
+   "tick": 4113,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 586,
+   "y": 55
+  },
+  {
+   "tick": 4131,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 2
+  },
+  {
+   "tick": 4140,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 649,
+   "y": 132
+  },
+  {
+   "tick": 4149,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 1
+  },
+  {
+   "tick": 4167,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 544,
+   "y": 47
+  },
+  {
+   "tick": 4176,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 14,
+   "amount": 1
+  },
+  {
+   "tick": 4185,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 2,
+   "amount": 1
+  },
+  {
+   "tick": 4194,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 13
+  },
+  {
+   "tick": 4203,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 12,
+   "amount": 5
+  },
+  {
+   "tick": 4212,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 509,
+   "y": 63
+  },
+  {
+   "tick": 4221,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 838,
+   "y": 37
+  },
+  {
+   "tick": 4230,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 544,
+   "y": 39
+  },
+  {
+   "tick": 4239,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 16
+  },
+  {
+   "tick": 4248,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 492,
+   "y": 64
+  },
+  {
+   "tick": 4257,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 735,
+   "y": 117
+  },
+  {
+   "tick": 4266,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 683,
+   "y": 120
+  },
+  {
+   "tick": 4275,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 498,
+   "y": 117
+  },
+  {
+   "tick": 4284,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 1
+  },
+  {
+   "tick": 4293,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 545,
+   "y": 107
+  },
+  {
+   "tick": 4302,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 838,
+   "y": 61
+  },
+  {
+   "tick": 4311,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 547,
+   "y": 115
+  },
+  {
+   "tick": 4320,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 33,
+   "amount": 1
+  },
+  {
+   "tick": 4329,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 771,
+   "y": 122
+  },
+  {
+   "tick": 4338,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 17,
+   "amount": 1
+  },
+  {
+   "tick": 4347,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 3
+  },
+  {
+   "tick": 4356,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "city",
+   "x": 686,
+   "y": 200
+  },
+  {
+   "tick": 4365,
+   "player": 2,
+   "type": "delete_unit",
+   "unit": 36
+  },
+  {
+   "tick": 4392,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 16,
+   "amount": 5
+  },
+  {
+   "tick": 4401,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "defense_post",
+   "x": 548,
+   "y": 107
+  },
+  {
+   "tick": 4410,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "missile_silo",
+   "x": 859,
+   "y": 66
+  },
+  {
+   "tick": 4437,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 841,
+   "y": 56
+  },
+  {
+   "tick": 4455,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 2,
+   "amount": 1
+  },
+  {
+   "tick": 4464,
+   "player": 2,
+   "type": "build_unit",
+   "unit_type": "sam_launcher",
+   "x": 538,
+   "y": 39
+  },
+  {
+   "tick": 4473,
+   "player": 2,
+   "type": "upgrade_structure",
+   "unit": 3,
+   "amount": 1
+  }
+ ]
+}

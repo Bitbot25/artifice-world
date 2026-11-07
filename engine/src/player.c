@@ -14,6 +14,7 @@
  * and expires that player's own alliances and embargoes there.
  */
 #include "internal.h"
+#include "units_ts.h"
 
 #define CITY_TROOP_INCREASE 250000.0
 #define TRAITOR_DURATION_TICKS (30 * TICKS_PER_SECOND)
@@ -258,7 +259,11 @@ void alliance_form(OfeGame *g, PlayerId a, PlayerId b, int32_t duration) {
     Alliance al = {a, b, g->tick, g->tick + (duration > 0 ? duration : alliance_duration(g)), 0, 0};
     AllianceVec_push(&g->alliances, al);
     /* New allies' nukes in flight at each other are called off. */
+#if OFE_TS_PARITY
+    nukes_ts_cancel_between(g, a, b);
+#else
     nukes_cancel_between(g, a, b);
+#endif
     /* Pending requests between the two are settled. */
     int32_t i;
     if ((i = request_find(g, a, b)) >= 0) request_remove(g, i);
@@ -302,7 +307,9 @@ void alliance_request(OfeGame *g, PlayerId from, PlayerId to) {
     event_emit(g, OFE_EV_ALLIANCE_REQUEST, 0, from, to, 0, 0);
 }
 
-void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other) {
+/* GameImpl.breakAlliance: the breaker is marked a traitor (unless the other already is one or
+ * is disconnected) and the alliance ends. Nukes use this alone. */
+void alliance_break_raw(OfeGame *g, PlayerId breaker, PlayerId other) {
     int32_t i = alliance_find(g, breaker, other);
     if (i < 0) return;
     if (!player_is_traitor(g, other) && !g->players.disconnected[other]) {
@@ -310,6 +317,13 @@ void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other) {
         g->players.betrayals[breaker]++;
     }
     g->alliances.data[i] = g->alliances.data[--g->alliances.len];
+    event_emit(g, OFE_EV_ALLIANCE_BROKEN, 0, breaker, other, 0, 0);
+}
+
+/* BreakAllianceExecution: break it, the victim likes the breaker less, and so do its neighbours. */
+void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other) {
+    if (alliance_find(g, breaker, other) < 0) return;
+    alliance_break_raw(g, breaker, other);
     player_update_relation(g, other, breaker, -100);
     /* Neighbours of the traitor (not on the victim's team) trust it less. */
     for (PlayerId n = 1; n < g->players.count; n++) {
@@ -318,7 +332,6 @@ void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other) {
         if (g->players.relation_row[n] < 0) continue;
         if (player_shares_border(g, breaker, n)) player_update_relation(g, n, breaker, -40);
     }
-    event_emit(g, OFE_EV_ALLIANCE_BROKEN, 0, breaker, other, 0, 0);
 }
 
 void alliance_request_extension(OfeGame *g, PlayerId from, PlayerId to) {
@@ -522,6 +535,7 @@ void players_tick(OfeGame *g) {
  * alliances and embargoes here rather than in a global pass. */
 bool player_exec_tick_ts(OfeGame *g, PlayerId p) {
     PlayerTable *pl = &g->players;
+    player_structures_tick_ts(g, p); /* structures on lost land are captured or destroyed */
     if (!player_alive(g, p)) {
         player_died(g, p);
         return false;

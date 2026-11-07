@@ -13,6 +13,9 @@
 void units_table_init(UnitTable *t) { memset(t, 0, sizeof(*t)); }
 
 void units_table_free(UnitTable *t) {
+#if OFE_TS_PARITY
+    free(t->id_slot);
+#endif
     UNIT_COLUMNS(FREE_COLUMN)
     for (int32_t i = 0; i < t->cap; i++) IntVec_free(&t->path[i]);
     free(t->path);
@@ -44,15 +47,27 @@ void units_table_copy(UnitTable *dst, const UnitTable *src) {
     dst->count = src->count;
     dst->num_alive = src->num_alive;
     IntVec_copy(&dst->free_slots, &src->free_slots);
+#if OFE_TS_PARITY
+    dst->id_slot = (int32_t *)ofe_xrealloc(dst->id_slot, (size_t)OFE_MAX(src->id_cap, 1) * sizeof(int32_t));
+    if (src->id_cap) memcpy(dst->id_slot, src->id_slot, (size_t)src->id_cap * sizeof(int32_t));
+    dst->id_cap = src->id_cap;
+    dst->next_uid = src->next_uid;
+    dst->next_seq = src->next_seq;
+#endif
 }
 
 int32_t unit_lookup(const OfeGame *g, UnitId id) {
+#if OFE_TS_PARITY
+    /* Ids are OpenFront's global counter; the table maps an id to its slot. */
+    return id > 0 && id < g->units.id_cap ? g->units.id_slot[id] - 1 : -1;
+#else
     if (id < 0) return -1;
     int32_t slot = unit_slot(id);
     const UnitTable *t = &g->units;
     if (slot >= t->count || !t->alive[slot]) return -1;
     if (t->generation[slot] != (uint16_t)(id >> UNIT_SLOT_BITS)) return -1;
     return slot;
+#endif
 }
 
 bool unit_is_structure(int type) {
@@ -97,6 +112,9 @@ UnitId unit_create(OfeGame *g, int type, PlayerId owner, TileRef tile) {
     t->level[slot] = 1;
     t->created_tick[slot] = g->tick;
     t->num_alive++;
+#if OFE_TS_PARITY
+    unit_ts_register(g, slot); /* uid, list order, grid order, health */
+#endif
     g->players.unit_count[owner][type]++;
     /* Invariant: unit_levels = summed levels of finished structures. A new
      * structure is finished until unit_begin_construction says otherwise. */
@@ -126,6 +144,9 @@ void unit_destroy(OfeGame *g, UnitId id, PlayerId destroyer) {
     t->alive[slot] = 0;
     t->num_alive--;
     t->path[slot].len = 0;
+#if OFE_TS_PARITY
+    t->id_slot[t->uid[slot]] = 0;
+#endif
     if (rail) rail_on_structure_changed(g, slot);
     IntVec_push(&t->free_slots, slot);
 }
@@ -149,6 +170,12 @@ void unit_capture(OfeGame *g, UnitId id, PlayerId new_owner) {
     }
     t->last_owner[slot] = old;
     t->owner[slot] = new_owner;
+#if OFE_TS_PARITY
+    /* UnitImpl.setOwner: pushed to the end of the new owner's list, pending deletion cleared. */
+    t->own_seq[slot] = t->next_seq++;
+    t->deletion_at[slot] = -1;
+    t->flags[slot] &= (uint8_t)~OFE_UF_MARKED_FOR_DELETION;
+#endif
     event_emit(g, OFE_EV_UNIT_CAPTURED, id, type, old, new_owner, 0);
     if (type == OFE_UNIT_CITY || type == OFE_UNIT_PORT || type == OFE_UNIT_FACTORY) rail_on_structure_changed(g, slot);
 }
@@ -179,7 +206,45 @@ void unit_set_level(OfeGame *g, int32_t slot, int level) {
     t->level[slot] = (uint8_t)OFE_CLAMP(level, 0, 255);
 }
 
-void unit_move(OfeGame *g, int32_t slot, TileRef tile) { g->units.tile[slot] = tile; }
+void unit_move(OfeGame *g, int32_t slot, TileRef tile) {
+#if OFE_TS_PARITY
+    unit_ts_moved(g, slot, tile);
+#endif
+    g->units.tile[slot] = tile;
+}
+
+#if OFE_TS_PARITY
+#define UNIT_GRID_CELL 100 /* OpenFront's UnitGrid cell size */
+
+static int32_t grid_cell_of(const OfeMap *m, TileRef t) {
+    int32_t cols = (m->width + UNIT_GRID_CELL - 1) / UNIT_GRID_CELL;
+    return (map_y(m, t) / UNIT_GRID_CELL) * cols + map_x(m, t) / UNIT_GRID_CELL;
+}
+
+/* A new unit gets OpenFront's next unit id, goes to the end of its owner's
+ * list and of its UnitGrid cell, and has health 1 (UnitImpl: maxHealth ?? 1). */
+void unit_ts_register(OfeGame *g, int32_t slot) {
+    UnitTable *t = &g->units;
+    int32_t uid = ++t->next_uid;
+    if (uid >= t->id_cap) {
+        int32_t cap = OFE_MAX(1024, t->id_cap * 2);
+        t->id_slot = (int32_t *)ofe_xrealloc(t->id_slot, (size_t)cap * sizeof(int32_t));
+        memset(t->id_slot + t->id_cap, 0, (size_t)(cap - t->id_cap) * sizeof(int32_t));
+        t->id_cap = cap;
+    }
+    t->id_slot[uid] = slot + 1;
+    t->uid[slot] = uid;
+    t->own_seq[slot] = t->grid_seq[slot] = t->next_seq++;
+    t->deletion_at[slot] = -1;
+    t->health[slot] = 1;
+}
+
+/* UnitGrid.updateUnitCell: entering another cell appends the unit to that cell's set. */
+void unit_ts_moved(OfeGame *g, int32_t slot, TileRef to) {
+    UnitTable *t = &g->units;
+    if (grid_cell_of(g->map, t->tile[slot]) != grid_cell_of(g->map, to)) t->grid_seq[slot] = t->next_seq++;
+}
+#endif
 
 /* ---- Costs -------------------------------------------------------------------- */
 

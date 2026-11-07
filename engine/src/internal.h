@@ -299,6 +299,21 @@ typedef struct AttackTable {
 #define UNIT_SLOT_BITS 20
 #define UNIT_SLOT_MASK ((1 << UNIT_SLOT_BITS) - 1)
 
+#if OFE_TS_PARITY
+/* Extra columns of the parity build (see units_ts.c):
+ *   uid          OpenFront's unit id (its global nextUnitID counter), the id the API reports
+ *   own_seq      order in the owner's unit list (JS array: push on build and capture)
+ *   grid_seq     order in OpenFront's 100x100 UnitGrid cell sets (decides query order)
+ *   deletion_at  tick a marked unit is deleted, -1 = not marked */
+#define UNIT_PARITY_COLUMNS(X) \
+    X(int32_t, uid)            \
+    X(int32_t, own_seq)        \
+    X(int32_t, grid_seq)       \
+    X(int32_t, deletion_at)
+#else
+#define UNIT_PARITY_COLUMNS(X)
+#endif
+
 #define UNIT_COLUMNS(X)                                                             \
     X(uint8_t, alive)                                                               \
     X(uint8_t, type) /* OfeUnitType */                                              \
@@ -320,7 +335,8 @@ typedef struct AttackTable {
     X(int32_t, aux1)                                                                \
     X(int32_t, aux2)                                                                \
     X(int32_t, aux3)                                                                \
-    X(double, auxf)
+    X(double, auxf)                                                                 \
+    UNIT_PARITY_COLUMNS(X)
 
 typedef struct UnitTable {
     int32_t count, cap; /* count = high-water mark of used slots */
@@ -328,6 +344,10 @@ typedef struct UnitTable {
     IntVec *path; /* per-unit path (tiles), may be empty */
     IntVec free_slots;
     int32_t num_alive;
+#if OFE_TS_PARITY
+    int32_t *id_slot; /* uid -> slot + 1, 0 = no such unit */
+    int32_t id_cap, next_uid, next_seq;
+#endif
 } UnitTable;
 
 static inline int32_t unit_slot(UnitId id) { return id & UNIT_SLOT_MASK; }
@@ -488,6 +508,7 @@ void alliance_accept(OfeGame *g, PlayerId requestor, PlayerId recipient);
 void alliance_reject(OfeGame *g, PlayerId requestor, PlayerId recipient);
 void alliance_form(OfeGame *g, PlayerId a, PlayerId b, int32_t duration);
 void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other);
+void alliance_break_raw(OfeGame *g, PlayerId breaker, PlayerId other); /* GameImpl.breakAlliance alone */
 void alliance_request_extension(OfeGame *g, PlayerId from, PlayerId to);
 void alliances_tick(OfeGame *g);
 void player_donate_troops(OfeGame *g, PlayerId from, PlayerId to, double troops);
