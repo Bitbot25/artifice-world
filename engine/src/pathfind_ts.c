@@ -1,9 +1,9 @@
 /*
  * pathfind_ts.c - OpenFront's water pathfinder, reproduced tile for tile.
  *
- * Only in the TS-parity build. The default build's ships use pathfind.c, a
- * faster approximation with other routes; here a ship's tile on every tick
- * is the one OpenFront's TypeScript engine gives. This file follows
+ * The one ship router, in both builds: a ship's tile on every tick is the one
+ * OpenFront's TypeScript engine gives, at 0.1-0.3 ms per cold query. This
+ * file follows
  * packages/engine/src/pathfinding/ closely (names in brackets are the TS
  * classes), and exactness comes before speed:
  *
@@ -35,13 +35,23 @@
  *   - The graph builder's BFS queue order (only distances are used).
  *
  * Immutable after construction except for a pool of search contexts, which
- * is borrowed under a lock; any number of games and threads may query. Water
- * does not change during a game (no water nukes), so the graph is never
- * rebuilt.
+ * is borrowed under a lock, and the route memo; any number of games and
+ * threads may query. Water does not change during a game (no water nukes),
+ * so the graph is never rebuilt.
+ *
+ * Route memo: findPath(from, to) with one source is a pure function of the
+ * map, and trade ships repeat the same port-to-port routes all game, so
+ * single-source results are cached per map in a fixed-size, sharded,
+ * direct-mapped table (see MEMO_*). A hit costs one copy of the route; the
+ * entries are never shared with callers, so a game cannot see another
+ * game's state through it and results do not depend on thread timing.
+ *
+ * Water bodies (ts_water_component) are OpenFront's WaterManager
+ * .getWaterComponent: connected components of the mini map, looked up from a
+ * full-map tile (the same answer TS gives, including its 1- and 2-hop
+ * search for shore tiles whose mini tile is land).
  */
 #include "pathfind_ts.h"
-
-#if OFE_TS_PARITY
 
 #include <pthread.h>
 
@@ -672,6 +682,21 @@ static bool abs_search(AbsSearch *s, const Graph *g, const int32_t *starts, int 
 
 /* ---- Search context (scratch for one query at a time) ---------------------- */
 
+#define MEMO_SHARDS 64
+#define MEMO_WAYS 96 /* direct-mapped slots per shard: 64 * 96 = 6144 routes per map */
+#define MEMO_MAX_LEN 2048 /* longer routes are not cached */
+
+typedef struct MemoEntry {
+    int64_t key; /* (from << 32) | to, -1 = empty */
+    int32_t len;
+    int32_t *tiles;
+} MemoEntry;
+
+typedef struct MemoShard {
+    pthread_mutex_t lock;
+    MemoEntry slot[MEMO_WAYS];
+} MemoShard;
+
 typedef struct Ctx {
     Bounded cluster; /* one cluster: 32 x 32 */
     Bounded multi; /* 3 x 3 clusters */
@@ -688,9 +713,13 @@ struct TsWater {
     const OfeMap *map;
     Mini mini;
     Graph *graph; /* NULL: plain A* on the mini map */
+    uint16_t *comp; /* per mini tile water body (the graph's, or its own when graph is NULL) */
+    bool own_comp;
+    int32_t ncomp; /* highest body id */
     int32_t nodes;
     pthread_mutex_t lock;
     Ctx *free_ctx;
+    MemoShard *memo; /* MEMO_SHARDS shards */
 };
 
 static Ctx *ctx_new(const TsWater *w) {
@@ -1161,7 +1190,7 @@ static bool water_core(const TsWater *w, Ctx *c, const int32_t *src, int ns, int
         Bounds all = {0, mn->w - 1, 0, mn->h - 1};
         return bounded_search(&c->plain, mn, src, ns, to, all, out) && out->len > 0;
     }
-    const uint16_t *comp = w->graph->comp;
+    const uint16_t *comp = w->comp;
     int32_t *valid = scratch_ints(c, 4, ns);
     int nv = 0;
     for (int i = 0; i < ns; i++) {
@@ -1341,9 +1370,20 @@ static void *ts_water_build(const OfeMap *m) {
     pthread_mutex_init(&w->lock, NULL);
     w->graph = graph_build(&w->mini);
     w->nodes = w->graph->nnodes;
+    w->comp = w->graph->comp;
+    for (int32_t i = 0; i < w->mini.w * w->mini.h; i++) {
+        if (w->comp[i] != 0xFFFF && w->comp[i] > w->ncomp) w->ncomp = w->comp[i];
+    }
     if (w->nodes < MIN_HPA_NODES) { /* TS: simple A* chain, no abstract graph */
+        w->graph->comp = NULL; /* the components stay: water bodies are still queried */
+        w->own_comp = true;
         graph_destroy(w->graph);
         w->graph = NULL;
+    }
+    w->memo = (MemoShard *)ofe_xcalloc(MEMO_SHARDS, sizeof(MemoShard));
+    for (int i = 0; i < MEMO_SHARDS; i++) {
+        pthread_mutex_init(&w->memo[i].lock, NULL);
+        for (int k = 0; k < MEMO_WAYS; k++) w->memo[i].slot[k].key = -1;
     }
     return w;
 }
@@ -1356,6 +1396,12 @@ static void ts_water_destroy(void *p) {
         c = next;
     }
     graph_destroy(w->graph);
+    if (w->own_comp) free(w->comp);
+    for (int i = 0; i < MEMO_SHARDS; i++) {
+        for (int k = 0; k < MEMO_WAYS; k++) free(w->memo[i].slot[k].tiles);
+        pthread_mutex_destroy(&w->memo[i].lock);
+    }
+    free(w->memo);
     pthread_mutex_destroy(&w->lock);
     free(w);
 }
@@ -1365,8 +1411,107 @@ const TsWater *ts_water(OfeMap *map) {
 }
 
 int32_t ts_water_node_count(const TsWater *w) { return w->nodes; }
+int32_t ts_water_num_components(const TsWater *w) { return w->ncomp; }
 
 static inline bool valid_ref(const TsWater *w, int64_t t) { return t >= 0 && t < w->map->num_tiles; }
+
+static inline MemoShard *memo_shard(const TsWater *w, int64_t key, int32_t *way) {
+    uint64_t h = (uint64_t)key * 0x9E3779B97F4A7C15ull;
+    *way = (int32_t)((h >> 20) % MEMO_WAYS);
+    return &w->memo[(h >> 58) % MEMO_SHARDS];
+}
+
+static bool memo_get(const TsWater *w, TileRef from, TileRef to, IntVec *out) {
+    int64_t key = ((int64_t)from << 32) | (uint32_t)to;
+    int32_t way;
+    MemoShard *sh = memo_shard(w, key, &way);
+    bool hit = false;
+    pthread_mutex_lock(&sh->lock);
+    const MemoEntry *e = &sh->slot[way];
+    if (e->key == key) {
+        IntVec_reserve(out, e->len);
+        memcpy(out->data, e->tiles, (size_t)e->len * sizeof(int32_t));
+        out->len = e->len;
+        hit = true;
+    }
+    pthread_mutex_unlock(&sh->lock);
+    return hit;
+}
+
+static void memo_put(const TsWater *w, TileRef from, TileRef to, const IntVec *route) {
+    if (route->len > MEMO_MAX_LEN) return;
+    int64_t key = ((int64_t)from << 32) | (uint32_t)to;
+    int32_t way;
+    MemoShard *sh = memo_shard(w, key, &way);
+    int32_t *copy = (int32_t *)ofe_xmalloc((size_t)route->len * sizeof(int32_t));
+    memcpy(copy, route->data, (size_t)route->len * sizeof(int32_t));
+    pthread_mutex_lock(&sh->lock);
+    MemoEntry *e = &sh->slot[way];
+    int32_t *old = e->tiles;
+    e->key = key;
+    e->len = route->len;
+    e->tiles = copy;
+    pthread_mutex_unlock(&sh->lock);
+    free(old);
+}
+
+/* ---- Water bodies (WaterManager.getWaterComponent / hasWaterComponent) ------ */
+
+/* Mini neighbours in TS's N, S, W, E order. */
+static int mini_neighbors(const Mini *mn, int32_t t, int32_t out[4]) {
+    int k = 0;
+    const int32_t x = t % mn->w;
+    if (t >= mn->w) out[k++] = t - mn->w;
+    if (t < (mn->h - 1) * mn->w) out[k++] = t + mn->w;
+    if (x > 0) out[k++] = t - 1;
+    if (x < mn->w - 1) out[k++] = t + 1;
+    return k;
+}
+
+static inline int32_t mini_of(const TsWater *w, TileRef t) {
+    const int32_t FW = w->map->width;
+    return ((t / FW) / 2) * w->mini.w + (t % FW) / 2;
+}
+
+int32_t ts_water_component(const TsWater *w, TileRef tile) {
+    if (!valid_ref(w, tile)) return -1;
+    const Mini *mn = &w->mini;
+    int32_t mt = mini_of(w, tile);
+    if (mini_water(mn, mt)) return w->comp[mt];
+    int32_t nb[4];
+    int n = mini_neighbors(mn, mt, nb);
+    for (int i = 0; i < n; i++) {
+        if (mini_water(mn, nb[i])) return w->comp[nb[i]];
+    }
+    for (int i = 0; i < n; i++) { /* narrow straits: 2 hops */
+        int32_t n2[4];
+        int k2 = mini_neighbors(mn, nb[i], n2);
+        for (int j = 0; j < k2; j++) {
+            if (mini_water(mn, n2[j])) return w->comp[n2[j]];
+        }
+    }
+    return -1;
+}
+
+bool ts_water_has_component(const TsWater *w, TileRef tile, int32_t component) {
+    if (!valid_ref(w, tile)) return false;
+    const Mini *mn = &w->mini;
+    int32_t mt = mini_of(w, tile);
+    if (mini_water(mn, mt) && w->comp[mt] == component) return true;
+    int32_t nb[4];
+    int n = mini_neighbors(mn, mt, nb);
+    for (int i = 0; i < n; i++) {
+        if (mini_water(mn, nb[i]) && w->comp[nb[i]] == component) return true;
+    }
+    for (int i = 0; i < n; i++) {
+        int32_t n2[4];
+        int k2 = mini_neighbors(mn, nb[i], n2);
+        for (int j = 0; j < k2; j++) {
+            if (mini_water(mn, n2[j]) && w->comp[n2[j]] == component) return true;
+        }
+    }
+    return false;
+}
 
 bool ts_water_find_path(const TsWater *w, const TileRef *from, int nfrom, TileRef to, IntVec *out) {
     out->len = 0;
@@ -1377,11 +1522,71 @@ bool ts_water_find_path(const TsWater *w, const TileRef *from, int nfrom, TileRe
     for (int i = 0; i < nfrom; i++) {
         if (!valid_ref(w, from[i])) return false; /* TS throws on a mix; treat as no route */
     }
+    if (nfrom == 1 && memo_get(w, from[0], to, out)) return true;
     Ctx *c = ctx_get(w);
     bool ok = mini_find(w, c, from, nfrom, to, out);
     ctx_put(w, c);
     if (!ok) out->len = 0;
+    else if (nfrom == 1) memo_put(w, from[0], to, out);
     return ok;
+}
+
+/* ---- closestShoreByWater (SpatialQuery) ------------------------------------------ */
+
+/* refineStartTile: among the shores within 20 tiles of the route's start,
+ * a bounded A* (full-resolution map, at most 100 x 100 tiles) towards a
+ * waypoint 50..200 tiles along the route picks the start. */
+static TileRef refine_start(const TsWater *w, const TileRef *shores, int n, const IntVec *route) {
+    const int32_t CANDIDATE_RADIUS = 20, MIN_WAYPOINT = 50, MAX_WAYPOINT = 200, PADDING = 10, MAX_AREA = 100 * 100;
+    const int32_t FW = w->map->width, FH = w->map->height;
+    TileRef best = route->data[0];
+    if (route->len <= MIN_WAYPOINT) return best;
+    const int32_t bx = best % FW, by = best / FW;
+
+    Ctx *c = ctx_get(w);
+    int32_t *cand = scratch_ints(c, 0, n);
+    int nc = 0;
+    for (int i = 0; i < n; i++) {
+        if (iabs(shores[i] % FW - bx) + iabs(shores[i] / FW - by) <= CANDIDATE_RADIUS) cand[nc++] = shores[i];
+    }
+    TileRef result = best;
+    if (nc > 1) {
+        int32_t cminx = cand[0] % FW, cmaxx = cminx, cminy = cand[0] / FW, cmaxy = cminy;
+        for (int i = 1; i < nc; i++) {
+            cminx = OFE_MIN(cminx, cand[i] % FW);
+            cmaxx = OFE_MAX(cmaxx, cand[i] % FW);
+            cminy = OFE_MIN(cminy, cand[i] / FW);
+            cmaxy = OFE_MAX(cmaxy, cand[i] / FW);
+        }
+        /* Binary search for the furthest waypoint that keeps the window small. */
+        int32_t lo = MIN_WAYPOINT, hi = OFE_MIN(MAX_WAYPOINT, route->len - 1), best_idx = lo;
+        for (int i = 0; i < 5 && lo <= hi; i++) {
+            int32_t mid = (lo + hi) >> 1, wx = route->data[mid] % FW, wy = route->data[mid] / FW;
+            int32_t minx = OFE_MIN(cminx, wx) - PADDING, maxx = OFE_MAX(cmaxx, wx) + PADDING;
+            int32_t miny = OFE_MIN(cminy, wy) - PADDING, maxy = OFE_MAX(cmaxy, wy) + PADDING;
+            if ((maxx - minx + 1) * (maxy - miny + 1) <= MAX_AREA) {
+                best_idx = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        TileRef wp = route->data[best_idx];
+        int32_t wx = wp % FW, wy = wp / FW;
+        Bounds bd = {OFE_MAX(0, OFE_MIN(cminx, wx) - PADDING), OFE_MIN(FW - 1, OFE_MAX(cmaxx, wx) + PADDING),
+                     OFE_MAX(0, OFE_MIN(cminy, wy) - PADDING), OFE_MIN(FH - 1, OFE_MAX(cmaxy, wy) + PADDING)};
+        if ((bd.max_x - bd.min_x + 1) * (bd.max_y - bd.min_y + 1) <= MAX_AREA) {
+            Mini full = {FW, FH, w->map->terrain};
+            if (bounded_search(&c->smooth, &full, cand, nc, wp, bd, &c->t0) && c->t0.len > 0) result = c->t0.data[0];
+        }
+    }
+    ctx_put(w, c);
+    return result;
+}
+
+TileRef ts_water_closest_shore(const TsWater *w, const TileRef *shores, int n, TileRef target, IntVec *route) {
+    if (n <= 0 || !ts_water_find_path(w, shores, n, target, route) || route->len == 0) return -1;
+    return refine_start(w, shores, n, route);
 }
 
 /* ---- PathFinderStepper --------------------------------------------------------- */
@@ -1454,4 +1659,3 @@ const int32_t *ts_water_stepper_rest(const TsWaterStepper *s, int32_t *len) {
     return s->path.data + (s->index - 1);
 }
 
-#endif /* OFE_TS_PARITY */

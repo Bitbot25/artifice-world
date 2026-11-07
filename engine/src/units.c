@@ -16,6 +16,8 @@ void units_table_free(UnitTable *t) {
     UNIT_COLUMNS(FREE_COLUMN)
     for (int32_t i = 0; i < t->cap; i++) IntVec_free(&t->path[i]);
     free(t->path);
+    for (int32_t i = 0; i < t->cap; i++) ts_water_stepper_free(&t->pf[i]);
+    free(t->pf);
     IntVec_free(&t->free_slots);
     memset(t, 0, sizeof(*t));
 }
@@ -24,6 +26,8 @@ static void units_table_grow(UnitTable *t, int32_t cap) {
     UNIT_COLUMNS(GROW_COLUMN)
     t->path = (IntVec *)ofe_xrealloc(t->path, (size_t)cap * sizeof(IntVec));
     memset(t->path + t->cap, 0, (size_t)(cap - t->cap) * sizeof(IntVec));
+    t->pf = (TsWaterStepper *)ofe_xrealloc(t->pf, (size_t)cap * sizeof(TsWaterStepper));
+    memset(t->pf + t->cap, 0, (size_t)(cap - t->cap) * sizeof(TsWaterStepper));
     t->cap = cap;
 }
 
@@ -33,13 +37,19 @@ void units_table_copy(UnitTable *dst, const UnitTable *src) {
         UNIT_COLUMNS(COPY_COLUMN)
     }
     for (int32_t i = 0; i < src->count; i++) {
-        if (src->alive[i]) IntVec_copy(&dst->path[i], &src->path[i]);
-        else dst->path[i].len = 0;
+        if (src->alive[i]) {
+            IntVec_copy(&dst->path[i], &src->path[i]);
+            ts_water_stepper_copy(&dst->pf[i], &src->pf[i]);
+        } else {
+            dst->path[i].len = 0;
+            ts_water_stepper_invalidate(&dst->pf[i]);
+        }
     }
     /* Rows past src->cap (dst was bigger) are dead in src. */
     for (int32_t i = src->cap; i < dst->cap; i++) {
         dst->alive[i] = 0;
         dst->path[i].len = 0;
+        ts_water_stepper_invalidate(&dst->pf[i]);
     }
     dst->count = src->count;
     dst->num_alive = src->num_alive;
@@ -85,6 +95,7 @@ UnitId unit_create(OfeGame *g, int type, PlayerId owner, TileRef tile) {
     UNIT_COLUMNS(RESET_COLUMN)
 #undef RESET_COLUMN
     t->path[slot].len = 0;
+    ts_water_stepper_invalidate(&t->pf[slot]);
     t->alive[slot] = 1;
     t->generation[slot] = gen;
     t->type[slot] = (uint8_t)type;

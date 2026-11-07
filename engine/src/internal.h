@@ -14,7 +14,7 @@
  *     lives in per-row vectors next to the table.
  *
  * Module map (one .c file per subsystem):
- *   map.c       map loading, terrain helpers, the half-res pathfinding map
+ *   map.c       map loading, terrain helpers, the mini (half-res) pathfinding map
  *   tiles.c     copy-on-write tile store, conquer/relinquish, borders
  *   game.c      create/destroy/clone, the tick loop, queries
  *   player.c    troop/gold growth, alliances, relations, embargoes, donations
@@ -26,7 +26,7 @@
  *   events.c    event log
  *   edit.c      state-edit API
  *   units.c     unit table, structures, construction, capture  (subsystem)
- *   ships.c     water pathfinding, transport/trade ships, warships (subsystem)
+ *   ships.c     transport/trade ships, warships (subsystem); routes: pathfind_ts.c
  *   nukes.c     atom/hydrogen bombs, MIRVs, SAMs               (subsystem)
  *   rail.c      factories, railroads, trains                    (subsystem)
  *   doomsday.c  doomsday clock                                  (subsystem)
@@ -271,6 +271,8 @@ typedef struct AttackTable {
 #define UNIT_SLOT_BITS 20
 #define UNIT_SLOT_MASK ((1 << UNIT_SLOT_BITS) - 1)
 
+#include "pathfind_ts.h" /* TsWaterStepper, held per unit */
+
 #define UNIT_COLUMNS(X)                                                             \
     X(uint8_t, alive)                                                               \
     X(uint8_t, type) /* OfeUnitType */                                              \
@@ -298,6 +300,7 @@ typedef struct UnitTable {
     int32_t count, cap; /* count = high-water mark of used slots */
     UNIT_COLUMNS(DECLARE_COLUMN)
     IntVec *path; /* per-unit path (tiles), may be empty */
+    TsWaterStepper *pf; /* per-ship route state (OpenFront's WaterPathFinder); plain data, deep-copied */
     IntVec free_slots;
     int32_t num_alive;
 } UnitTable;
