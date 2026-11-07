@@ -15,7 +15,7 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 | Land attack on terra nullius, 9 cells | tiles conquered: median delta 0.0%, p90 0.3% |
 | Land attack on a player, 36 cells | tiles conquered: median +0.6%, p90 1.9%, worst cell +2.8% |
 | Wiping out an 80-tile player; enclave annexation; city and defense post | identical or within 0.2% |
-| Boat travel time, 10 routes (25 to 350 tiles) | all land in both except boat_d350_0 (neither within 700 ticks); per-route C/TS ratio mean 0.98 (min 0.69, max 1.12); boat_d350_1: 696 vs 697 ticks |
+| Boat travel time, 10 routes (25 to 350 tiles) | identical on every route (per-route C/TS ratio 1.000; boat_d350_0 lands in neither within 700 ticks); ships use OpenFront's own water pathfinder |
 | Nation spawn size at t=0 | 46.6 vs 47.2 tiles per nation (C used to give a fixed 49.9) |
 | Tribes alive at t=600 | 14.5 vs 12.5 (was 23 vs 12.5); all gone by t=2400 in both |
 | Nation land at t=600 / t=6000 | 139k vs 140k / 156k vs 158k tiles; nations alive at t=6000: 13.5 vs 12.5 |
@@ -36,28 +36,28 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 * AI alliance answers are given on the AI's own turn (OpenFront's AIs look at their inbox only when they wake up):
   nations reject everything asked during the spawn phase, tribes accept everything, and neither asks to extend an
   alliance on its own (only an agent's extension ask is answered).
-* Ship routing: both routing grids cut straits one or two tiles wide, which closed the Mediterranean, Black Sea and
-  Baltic and sent Arctic to Pacific boats round the Atlantic (1250 ticks instead of about 700 in boat_d350_1). A full-
-  resolution grid is now searched when both grids fail, or when a grid route is over three times the straight line
-  (greedy A*, built once per map, memoised). All 297 random shore pairs of the world test are routable (9 failed before).
-  AI "could a boat go there" probes no longer search at all (same water body is enough).
-* A cancelled transport ship sails to the own shore nearest to where it is (25% of the troops lost on arrival), not
-  back along its route.
+* Ship routing is OpenFront's own water pathfinder in both builds (`engine/src/pathfind_ts.c`: mini map from
+  `map4x.bin`/`map16x.bin`, hierarchical A*, smoothing, shore coercing; verified tile for tile against TS). It
+  replaces the weighted grid A* with string pulling and its full-resolution strait fallback, which were slower and gave
+  routes that differed by tens of percent (boat_d50_1: 74 vs 107 ticks, boat_d200_1: 414 vs 371). Launch and retreat
+  shores follow `closestShoreByWater` (route-based, with `refineStartTile`), water bodies are `getWaterComponent`.
+  Straits, the Bering route (about 700 ticks) and all 297 random shore pairs of the world test are routable. Routes are
+  memoised per map; ships hold a stepper (`WaterPathFinder.next`) in the unit table.
+* A cancelled transport ship sails to the nearest own shore by water, as in OpenFront (25% of the troops lost on
+  arrival), not back along its route.
 
 **Remaining differences (not fixed)**
 
-1. Pathfinding is not OpenFront's hierarchical A*: routes come from weighted A* on routing grids plus string pulling.
-   Straight stretches take the same number of ticks, detours can differ by tens of percent (boat_d50_1: 74 vs 107 ticks,
-   boat_d200_1: 414 vs 371).
-2. The retreat shore is chosen by straight-line distance, OpenFront's closestShoreByWater measures by water.
-3. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here.
-4. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
+1. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here. Their
+   routes are exact, their decisions are not (the leader-land-share row of the AI section has n=6 and flags at some
+   checkpoints from run to run; it is sampling noise there).
+2. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
    not checked against hostile warships, and "largest cluster" boxes are the border bounding box. Medium is what the
    comparison runs.
-5. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
+3. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
    trajectory; no nuke price memory or strike follow-ups for nations. A 20-minute Impossible world game launches about
    250 nukes in C; there is no TS number to compare it with yet.
-6. Enclave annexation uses no diagonal-pinch pass (nuke craters).
-7. No emojis, no tutorial logic, no team-spawn areas.
-8. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
+4. Enclave annexation uses no diagonal-pinch pass (nuke craters).
+5. No emojis, no tutorial logic, no team-spawn areas.
+6. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
    confidence intervals (leader share, nations alive at t=6000).

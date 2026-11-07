@@ -34,8 +34,11 @@ reacting to an emoji does; the emoji itself does not).
    order instead of per-system batches.
 4. **Big divergent algorithms get their own file**: `<module>_ts.c`, wrapped
    whole in `#if OFE_TS_PARITY` and called from the module at one switch point
-   (for example the nation AI or the water pathfinder). The default module
-   stays readable on its own.
+   (for example the nation AI). The default module stays readable on its own.
+   An exact algorithm that is also fast is not divergent: the water pathfinder
+   (`pathfind_ts.c`, 0.1-0.3 ms per cold query, route memo per map) is the only
+   ship router of both builds, and `ofe_map_load` reads OpenFront's real mini
+   map (`map4x.bin` / `map16x.bin`) in both.
 5. Each `#if OFE_TS_PARITY` block says in one line what TS does that the
    default build approximates.
 

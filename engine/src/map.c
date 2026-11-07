@@ -262,6 +262,28 @@ static bool load_bin(const char *dir, const char *file, int32_t w, int32_t h, ui
     return true;
 }
 
+/* Reads OpenFront's real mini map into m. False if the files are missing. */
+static bool load_mini(const char *map_dir, const char *manifest_path, int compact, OfeMap *m) {
+    size_t len;
+    char *json = (char *)read_file(manifest_path, &len);
+    int32_t mw, mh, n;
+    char name[64];
+    Nation *nations = NULL;
+    bool ok = json && parse_manifest(json, len, compact ? "map16x" : "map4x", &mw, &mh, name, &nations, &n);
+    free(json);
+    if (!ok) return false;
+    free(nations);
+    uint8_t *mt = (uint8_t *)ofe_xmalloc((size_t)mw * mh);
+    if (!load_bin(map_dir, compact ? "map16x.bin" : "map4x.bin", mw, mh, mt)) {
+        free(mt);
+        return false;
+    }
+    m->mini_terrain = mt;
+    m->mini_width = mw;
+    m->mini_height = mh;
+    return true;
+}
+
 OfeMap *ofe_map_load(const char *map_dir, int compact) {
     char path[1024];
     snprintf(path, sizeof(path), "%s/manifest.json", map_dir);
@@ -290,32 +312,10 @@ OfeMap *ofe_map_load(const char *map_dir, int compact) {
         return NULL;
     }
     map_derive(m);
-    map_derive_mini(m);
-#if OFE_TS_PARITY
     /* OpenFront routes ships on the mini map from its own file (map4x.bin, or
-     * map16x.bin for compact games), which is not the 2x2 reduction above. */
-    {
-        char mw_key[8];
-        snprintf(mw_key, sizeof(mw_key), "%s", compact ? "map16x" : "map4x");
-        int32_t mw, mh, dummy_n;
-        char dummy_name[64];
-        Nation *dummy;
-        char *json2 = (char *)read_file(path, &len);
-        if (json2 && parse_manifest(json2, len, mw_key, &mw, &mh, dummy_name, &dummy, &dummy_n)) {
-            free(dummy);
-            uint8_t *mt = (uint8_t *)ofe_xmalloc((size_t)mw * mh);
-            if (load_bin(map_dir, compact ? "map16x.bin" : "map4x.bin", mw, mh, mt)) {
-                free(m->mini_terrain);
-                m->mini_terrain = mt;
-                m->mini_width = mw;
-                m->mini_height = mh;
-            } else {
-                free(mt);
-            }
-        }
-        free(json2);
-    }
-#endif
+     * map16x.bin for compact games), which is not the 2x2 reduction. Maps
+     * without that file get the reduction. */
+    if (!load_mini(map_dir, path, compact, m)) map_derive_mini(m);
 
     /* Nation coordinates are given at full size; compact maps halve them. */
     for (int32_t i = 0; i < num_nations; i++) {

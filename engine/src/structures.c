@@ -324,12 +324,7 @@ static TileRef warship_port_tile(const OfeGame *g, PlayerId p, TileRef tile) {
         if (u->flags[i] & OFE_UF_UNDER_CONSTRUCTION) continue;
         int32_t d = map_manhattan(g->map, u->tile[i], tile);
         if (best >= 0 && d >= best_d) continue;
-        /* A port is on land: look at the water next to it. */
-        TileRef nb[4];
-        int k = map_neighbors4(g->map, u->tile[i], nb);
-        bool same = false;
-        for (int j = 0; j < k && !same; j++) same = map_is_water(g->map, nb[j]) && ships_water_component(mg, nb[j]) == comp;
-        if (!same) continue;
+        if (!ships_touches_water(mg, u->tile[i], comp)) continue;
         best = u->tile[i];
         best_d = d;
     }

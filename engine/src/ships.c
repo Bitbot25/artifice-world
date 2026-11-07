@@ -3,24 +3,28 @@
  *
  * Rules and constants follow OpenFront's TransportShipExecution,
  * TradeShipExecution, PortExecution, WarshipExecution, MoveWarshipExecution
- * and ShellExecution. Water bodies and routing are in pathfind.c.
+ * and ShellExecution. Routes and water bodies are OpenFront's own water
+ * pathfinder (pathfind_ts.c): every ship holds a stepper (the unit table's
+ * `pf`, OpenFront's WaterPathFinder) and calls ts_water_next() once per move.
  *
- * Speeds (as in OpenFront): a ship moves one path tile per tick (transport,
- * trade, warship; a warship chasing a trade ship moves two); a shell moves
- * three tiles per tick.
+ * Speeds (as in OpenFront): a ship moves one path tile per tick (transport
+ * every ticksPerMove = 1; trade, warship; a warship chasing a trade ship
+ * moves two); a shell moves three tiles per tick.
  *
  * Unit columns, by type (everything not listed is unused):
  *
  *   TRANSPORT_SHIP  troops = troops on board
  *                   src_tile = shore tile it left from
- *                   target_tile = landing shore tile
- *                   path / path_pos = route from src_tile to target_tile
+ *                   target_tile = landing shore tile (the retreat shore once
+ *                          cancelled)
+ *                   pf = route state
  *                   flags OFE_UF_RETREATING = cancelled, sailing home
- *                   aux0 = 1 once the retreat route has been planned
+ *                   aux0 = 1 once the retreat shore has been chosen
+ *                   aux1 = tick of the last move (ticksPerMove)
  *
  *   TRADE_SHIP      target_unit = destination port (id)
  *                   src_tile = the origin port's tile
- *                   path / path_pos = route; target_tile = destination tile
+ *                   target_tile = destination tile; pf = route state
  *                   aux0 = tiles travelled (sets the payout)
  *                   aux1 = origin port (id), aux2 = original owner
  *                   aux3 = last tick it was in shallow water (pirate-safe
@@ -29,7 +33,7 @@
  *
  *   WARSHIP         health, aux0 = patrol centre tile + 1 (0 = where it is)
  *                   target_tile = the tile it is sailing to (patrol leg or
- *                          retreat port), -1 = none; path / path_pos = route
+ *                          retreat port), -1 = none; pf = route state
  *                   target_unit = ship it is shooting / hunting
  *                   aux1 = repair port tile + 1 (0 = none)
  *                   aux2 = tick of the last shell (reload)
@@ -47,15 +51,13 @@
  *                          the firing warship is gone)
  *
  * Simplifications versus OpenFront:
- *   - Routes come from pathfind.c (weighted A* on the half-resolution map,
- *     string-pulled, expanded to one tile per tick), not OpenFront's
- *     hierarchical A*. Straight-line stretches take the same number of ticks.
- *   - A cancelled transport ship sails to the own shore nearest (straight
- *     line) to where it is, on the water body it is in, like OpenFront's
- *     closestShoreByWater (which measures by water); 25% of its troops are
- *     lost on return. With no such shore the troops are refunded in full.
- *   - A transport ship whose route cannot be found is never launched (no
- *     troops are taken), instead of launching and returning them.
+ *   - Routes, launch shores (closestShoreByWater, incl. refineStartTile)
+ *     and water bodies are OpenFront's (see pathfind_ts.c); the landing
+ *     search is a ring scan, not a BFS (same nearest tile).
+ *   - A cancelled transport ship sails to the nearest own shore by water, as
+ *     in OpenFront; 25% of its troops are lost on return. With no such shore
+ *     the troops are refunded in full.
+ *   - Boats do not rebuild their routes when water changes (no water nukes).
  *   - The trade-ship pity timer is kept per port (in ShipsState, indexed by
  *     unit slot) as in OpenFront, not in players.trade_spawn_rejections,
  *     which is left unused. Ports check every 10 ticks, offset by their slot.
@@ -69,12 +71,11 @@
  *     water body).
  *   - Shells fly in a deterministic staircase line (the dominant axis first)
  *     instead of OpenFront's random choice between the two axes.
- *   - Water bodies are 4-connected labels capped at 65535 per map.
  *
  * Randomness: every draw comes from a splitmix64 stream derived from the
  * game seed, the tick and the unit slot, so no state is carried between ticks.
  */
-#include "pathfind.h"
+#include "pathfind_ts.h"
 
 /* ---- Constants (EngineConfig.ts) ------------------------------------------- */
 #define BOAT_MAX_NUMBER 3
@@ -83,7 +84,7 @@
 #define SAFE_FROM_PIRATES_TICKS 20
 #define TRADE_CHECK_PERIOD 10
 #define LANDING_SEARCH_RANGE 50
-#define SOURCE_CANDIDATES 12
+#define TRANSPORT_TICKS_PER_MOVE 1
 
 #define WARSHIP_MAX_HEALTH 1000
 #define WARSHIP_PATROL_RANGE 100
@@ -125,7 +126,8 @@ struct ShipsState {
 
     /* Scratch, rebuilt as needed; never copied. */
     IntVec ports, ships, shells; /* unit slots, rebuilt every tick */
-    IntVec route; /* route under construction */
+    IntVec route; /* scratch: multi-source route */
+    IntVec shores; /* scratch: launch shore candidates */
     uint32_t *comp_mark;
     int32_t comp_mark_cap;
     uint32_t comp_gen;
@@ -172,6 +174,7 @@ void ships_state_free(OfeGame *g) {
     IntVec_free(&st->ships);
     IntVec_free(&st->shells);
     IntVec_free(&st->route);
+    IntVec_free(&st->shores);
     free(st->comp_mark);
     free(st->cands);
     free(st);
@@ -185,38 +188,34 @@ static inline ShipsState *state_of(OfeGame *g) {
 
 /* ---- Water queries ------------------------------------------------------------ */
 
+static inline const TsWater *tsw(const OfeGame *g) { return ts_water(g->map); }
+
+/* OpenFront's getWaterComponent of a tile; -1 where it returns null. */
+static inline int32_t water_comp(const OfeGame *g, TileRef t) { return ts_water_component(tsw(g), t); }
+
+/* OpenFront's hasWaterComponent. */
+static inline bool touches_comp(const OfeGame *g, TileRef t, int32_t comp) {
+    return comp >= 0 && ts_water_has_component(tsw(g), t, comp);
+}
+
 int32_t ships_water_component(OfeGame *g, TileRef tile) {
     if (tile < 0 || tile >= g->map->num_tiles) return -1;
     if (map_is_land(g->map, tile)) return -1;
-    return water_tile_component(water_graph(g->map), g->map, tile);
+    return water_comp(g, tile);
 }
 
-static bool comps_intersect(const int32_t *a, int na, const int32_t *b, int nb) {
-    for (int i = 0; i < na; i++) {
-        for (int j = 0; j < nb; j++) {
-            if (a[i] == b[j]) return true;
-        }
-    }
-    return false;
-}
-
-/* Does tile t (water, or a shore) touch water body comp? */
-static bool tile_touches_comp(const WaterGraph *wg, const OfeMap *m, TileRef t, int32_t comp) {
-    int32_t c[4];
-    int n = water_tile_components(wg, m, t, c);
-    for (int i = 0; i < n; i++) {
-        if (c[i] == comp) return true;
-    }
-    return false;
+bool ships_touches_water(OfeGame *g, TileRef tile, int32_t comp) {
+    return tile >= 0 && tile < g->map->num_tiles && touches_comp(g, tile, comp);
 }
 
 static inline int64_t dist2(const OfeMap *m, TileRef a, TileRef b) { return map_dist2(m, a, b); }
 
 /* ---- Transport ship: launch ---------------------------------------------------- */
 
-/* Marks the water bodies touching p's shore tiles. Returns false if none. */
-static bool mark_reachable_bodies(OfeGame *g, ShipsState *st, PlayerId p, const WaterGraph *wg) {
-    int32_t need = water_graph_num_components(wg) + 1;
+/* Marks the water bodies touching p's shore tiles (SpatialQuery
+ * .reachableComponents). Returns false if none. */
+static bool mark_reachable_bodies(OfeGame *g, ShipsState *st, PlayerId p) {
+    int32_t need = ts_water_num_components(tsw(g)) + 1;
     if (st->comp_mark_cap < need) {
         st->comp_mark = (uint32_t *)ofe_xrealloc(st->comp_mark, (size_t)need * sizeof(uint32_t));
         memset(st->comp_mark, 0, (size_t)need * sizeof(uint32_t));
@@ -232,12 +231,10 @@ static bool mark_reachable_bodies(OfeGame *g, ShipsState *st, PlayerId p, const 
     for (int32_t i = 0; i < border->len; i++) {
         TileRef t = border->data[i];
         if (!map_is_shore(g->map, t)) continue;
-        int32_t c[4];
-        int n = water_tile_components(wg, g->map, t, c);
-        for (int k = 0; k < n; k++) {
-            st->comp_mark[c[k]] = st->comp_gen;
-            any = true;
-        }
+        int32_t c = water_comp(g, t);
+        if (c < 0) continue;
+        st->comp_mark[c] = st->comp_gen;
+        any = true;
     }
     return any;
 }
@@ -246,8 +243,7 @@ static bool mark_reachable_bodies(OfeGame *g, ShipsState *st, PlayerId p, const 
  * whoever owns `tile`, on a water body the attacker's own shore touches. */
 static TileRef find_landing(OfeGame *g, ShipsState *st, PlayerId attacker, TileRef tile) {
     const OfeMap *m = g->map;
-    const WaterGraph *wg = water_graph(g->map);
-    if (!mark_reachable_bodies(g, st, attacker, wg)) return -1;
+    if (!mark_reachable_bodies(g, st, attacker)) return -1;
     PlayerId target = tile_owner(g, tile);
     const int tx = map_x(m, tile), ty = map_y(m, tile);
     for (int d = 0; d <= LANDING_SEARCH_RANGE; d++) {
@@ -258,45 +254,30 @@ static TileRef find_landing(OfeGame *g, ShipsState *st, PlayerId attacker, TileR
                 if (!map_in_bounds(m, x, y)) continue;
                 TileRef t = map_ref(m, x, y);
                 if (!map_is_shore(m, t) || !map_is_ownable(m, t) || tile_owner(g, t) != target) continue;
-                int32_t c[4];
-                int n = water_tile_components(wg, m, t, c);
-                for (int k = 0; k < n; k++) {
-                    if (st->comp_mark[c[k]] == st->comp_gen) return t;
-                }
+                int32_t c = water_comp(g, t);
+                if (c >= 0 && st->comp_mark[c] == st->comp_gen) return t;
             }
         }
     }
     return -1;
 }
 
-/* Up to SOURCE_CANDIDATES of p's shore tiles on the landing's water body,
- * nearest (straight line) first. */
-static int pick_sources(OfeGame *g, PlayerId p, TileRef landing, TileRef *out) {
+/* OpenFront's closestShoreByWater(player, target): the best of p's shore tiles
+ * on target's water body to sail to target from. -1 if p has no such shore or
+ * no route. `route` is scratch. */
+static TileRef closest_shore_by_water(OfeGame *g, ShipsState *st, PlayerId p, TileRef target, IntVec *route) {
     const OfeMap *m = g->map;
-    const WaterGraph *wg = water_graph(g->map);
-    int32_t lc[4];
-    int nl = water_tile_components(wg, m, landing, lc);
-    int32_t best_d[SOURCE_CANDIDATES];
-    int n = 0;
+    if (!map_is_water(m, target) && !map_is_shore(m, target)) return -1;
+    int32_t tc = water_comp(g, target);
+    if (tc < 0) return -1;
+    st->shores.len = 0;
     const IntVec *border = &g->players.border[p];
     for (int32_t i = 0; i < border->len; i++) {
         TileRef t = border->data[i];
-        if (!map_is_shore(m, t)) continue;
-        int32_t d = map_manhattan(m, t, landing);
-        if (n == SOURCE_CANDIDATES && d >= best_d[n - 1]) continue;
-        int32_t c[4];
-        int nc = water_tile_components(wg, m, t, c);
-        if (!comps_intersect(c, nc, lc, nl)) continue;
-        int k = n < SOURCE_CANDIDATES ? n++ : n - 1;
-        while (k > 0 && best_d[k - 1] > d) {
-            best_d[k] = best_d[k - 1];
-            out[k] = out[k - 1];
-            k--;
-        }
-        best_d[k] = d;
-        out[k] = t;
+        if (map_is_shore(m, t) && water_comp(g, t) == tc) IntVec_push(&st->shores, t);
     }
-    return n;
+    if (st->shores.len == 0) return -1;
+    return ts_water_closest_shore(tsw(g), st->shores.data, st->shores.len, target, route);
 }
 
 static bool unit_disabled(const OfeGame *g, int type) { return (g->cfg.disabled_units >> type) & 1u; }
@@ -313,14 +294,12 @@ static TileRef transport_landing(OfeGame *g, ShipsState *st, PlayerId p, TileRef
     return find_landing(g, st, p, dst);
 }
 
+/* Where a boat for `dst` would leave from (OpenFront's canBuild(TransportShip)). */
 TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst) {
     ShipsState *st = state_of(g);
     TileRef landing = transport_landing(g, st, p, dst);
     if (landing < 0) return -1;
-    /* Same water body is enough for the AI's "could a boat go there" probes
-     * (they never use the route), so no search: the nearest candidate. */
-    TileRef srcs[SOURCE_CANDIDATES];
-    return pick_sources(g, p, landing, srcs) > 0 ? srcs[0] : -1;
+    return closest_shore_by_water(g, st, p, landing, &st->route);
 }
 
 UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops) {
@@ -329,16 +308,12 @@ UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops
     if (landing < 0) return -1;
     PlayerId target = tile_owner(g, landing);
 
-    TileRef srcs[SOURCE_CANDIDATES];
-    int n = pick_sources(g, p, landing, srcs);
-    if (n == 0) return -1;
+    TileRef src = closest_shore_by_water(g, st, p, landing, &st->route);
+    if (src < 0) return -1;
 
     if (troops < 0) troops = floor((double)g->players.troops[p] / 5.0);
     troops = OFE_MIN(troops, (double)g->players.troops[p]);
     if (troops < 1) return -1;
-
-    int32_t best = water_find_path(water_graph(g->map), g->map, srcs, n, landing, &st->route);
-    if (best < 0) return -1;
 
     /* The attacker's pending alliance request from the target no longer makes sense. */
     if (target != 0 && g->players.type[target] != OFE_PLAYER_BOT && g->players.type[p] != OFE_PLAYER_BOT) {
@@ -346,7 +321,7 @@ UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops
     }
 
     troops = player_remove_troops(g, p, troops);
-    UnitId id = unit_create(g, OFE_UNIT_TRANSPORT_SHIP, p, srcs[best]);
+    UnitId id = unit_create(g, OFE_UNIT_TRANSPORT_SHIP, p, src);
     if (id < 0) {
         player_add_troops(g, p, troops);
         return -1;
@@ -354,10 +329,9 @@ UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops
     int32_t s = unit_lookup(g, id);
     UnitTable *u = &g->units;
     u->troops[s] = troops;
-    u->src_tile[s] = srcs[best];
+    u->src_tile[s] = src;
     u->target_tile[s] = landing;
-    u->path_pos[s] = 0;
-    IntVec_copy(&u->path[s], &st->route);
+    u->aux1[s] = g->tick;
     return id;
 }
 
@@ -370,34 +344,12 @@ bool ships_retreat_transport(OfeGame *g, PlayerId p, UnitId id) {
 
 /* ---- Transport ship: tick -------------------------------------------------------- */
 
-/* The own shore tile nearest to the ship on its water body, or -1. */
-static TileRef nearest_own_shore(const OfeGame *g, int32_t s) {
-    const UnitTable *u = &g->units;
-    const WaterGraph *wg = water_graph(g->map);
-    int32_t comp = water_tile_component(wg, g->map, u->tile[s]);
-    const IntVec *border = &g->players.border[u->owner[s]];
-    TileRef best = -1;
-    int32_t best_d = 0;
-    for (int32_t i = 0; i < border->len && comp >= 0; i++) {
-        TileRef t = border->data[i];
-        if (!map_is_shore(g->map, t) || !tile_touches_comp(wg, g->map, t, comp)) continue;
-        int32_t d = map_manhattan(g->map, t, u->tile[s]);
-        if (best < 0 || d < best_d) {
-            best = t;
-            best_d = d;
-        }
-    }
-    return best;
-}
-
-/* Replaces the ship's route with one to its nearest own shore. */
+/* Cancelled: the nearest own shore by water becomes the destination (the
+ * stepper re-routes by itself when the destination changes). */
 static bool plan_retreat(OfeGame *g, int32_t s) {
     UnitTable *u = &g->units;
-    ShipsState *st = state_of(g);
-    TileRef home = nearest_own_shore(g, s), from = u->tile[s];
-    if (home < 0 || water_find_path_quick(water_graph(g->map), g->map, &from, 1, home, &st->route) < 0) return false;
-    IntVec_copy(&u->path[s], &st->route);
-    u->path_pos[s] = 0;
+    TileRef home = closest_shore_by_water(g, state_of(g), u->owner[s], u->tile[s], &state_of(g)->route);
+    if (home < 0) return false;
     u->target_tile[s] = home;
     return true;
 }
@@ -429,8 +381,9 @@ static void transport_arrive(OfeGame *g, int32_t s) {
 
 static void transport_tick(OfeGame *g, int32_t s) {
     UnitTable *u = &g->units;
-    IntVec *path = &u->path[s];
-    if (path->len == 0 || u->target_tile[s] < 0) return; /* added by a state edit: stays put */
+    if (u->target_tile[s] < 0) return; /* added by a state edit: stays put */
+    if (g->tick - u->aux1[s] < TRANSPORT_TICKS_PER_MOVE) return;
+    u->aux1[s] = g->tick;
 
     /* Landing tile turned into water (nuked): go home. */
     if (map_is_water(g->map, u->target_tile[s])) u->flags[s] |= OFE_UF_RETREATING;
@@ -443,12 +396,15 @@ static void transport_tick(OfeGame *g, int32_t s) {
             return;
         }
     }
-    if (u->path_pos[s] + 1 >= path->len) {
-        transport_arrive(g, s);
-        return;
+    TileRef node;
+    switch (ts_water_next(tsw(g), &u->pf[s], u->tile[s], u->target_tile[s], 0, &node)) {
+    case TS_PATH_COMPLETE: transport_arrive(g, s); break;
+    case TS_PATH_NEXT: unit_move(g, s, node); break;
+    default: /* no route: the troops go back */
+        player_add_troops(g, u->owner[s], u->troops[s]);
+        unit_destroy(g, unit_id_of_slot(g, s), 0);
+        break;
     }
-    u->path_pos[s]++;
-    unit_move(g, s, path->data[u->path_pos[s]]);
 }
 
 /* ---- Trade ships ------------------------------------------------------------------- */
@@ -491,10 +447,17 @@ static int cand_cmp(const void *a, const void *b) {
 static int32_t pick_trade_partner(OfeGame *g, ShipsState *st, int32_t s, uint64_t *rs) {
     const UnitTable *u = &g->units;
     const OfeMap *m = g->map;
-    const WaterGraph *wg = water_graph(g->map);
     PlayerId owner = u->owner[s];
+    /* tradingPorts(): the water bodies next to the port's tile. */
     int32_t sc[4];
-    int nsc = water_tile_components(wg, m, u->tile[s], sc);
+    int nsc = 0;
+    TileRef nb[4];
+    int nn = map_neighbors4(m, u->tile[s], nb);
+    for (int i = 0; i < nn; i++) {
+        if (!map_is_water(m, nb[i])) continue;
+        int32_t c = water_comp(g, nb[i]);
+        if (c >= 0) sc[nsc++] = c;
+    }
     if (nsc == 0) return -1;
 
     if (st->cands_cap < st->ports.len) {
@@ -507,9 +470,9 @@ static int32_t pick_trade_partner(OfeGame *g, ShipsState *st, int32_t s, uint64_
         PlayerId o = u->owner[q];
         if (!u->alive[q] || o == owner || (u->flags[q] & OFE_UF_UNDER_CONSTRUCTION)) continue;
         if (!player_can_trade(g, o, owner)) continue;
-        int32_t qc[4];
-        int nqc = water_tile_components(wg, m, u->tile[q], qc);
-        if (!comps_intersect(sc, nsc, qc, nqc)) continue;
+        bool shared = false;
+        for (int k = 0; k < nsc && !shared; k++) shared = touches_comp(g, u->tile[q], sc[k]);
+        if (!shared) continue;
         st->cands[n].slot = q;
         st->cands[n].dist = map_manhattan(m, u->tile[s], u->tile[q]);
         st->cands[n].level = u->level[q];
@@ -538,11 +501,10 @@ static int32_t pick_trade_partner(OfeGame *g, ShipsState *st, int32_t s, uint64_
     return st->cands[n - 1].slot;
 }
 
-static void spawn_trade_ship(OfeGame *g, ShipsState *st, int32_t port, int32_t dst_port) {
+static void spawn_trade_ship(OfeGame *g, int32_t port, int32_t dst_port) {
     UnitTable *u = &g->units;
     PlayerId owner = u->owner[port];
     TileRef from = u->tile[port], to = u->tile[dst_port];
-    if (water_find_path_quick(water_graph(g->map), g->map, &from, 1, to, &st->route) < 0) return;
     UnitId dst_id = unit_id_of_slot(g, dst_port), port_id = unit_id_of_slot(g, port);
     UnitId id = unit_create(g, OFE_UNIT_TRADE_SHIP, owner, from);
     if (id < 0) return;
@@ -554,8 +516,6 @@ static void spawn_trade_ship(OfeGame *g, ShipsState *st, int32_t port, int32_t d
     u->aux1[s] = port_id;
     u->aux2[s] = owner;
     u->aux3[s] = g->tick;
-    u->path_pos[s] = 0;
-    IntVec_copy(&u->path[s], &st->route);
 }
 
 static void port_tick(OfeGame *g, ShipsState *st, int32_t s, int32_t num_trade_ships) {
@@ -584,7 +544,7 @@ static void port_tick(OfeGame *g, ShipsState *st, int32_t s, int32_t num_trade_s
     }
     if (!spawn) return;
     int32_t partner = pick_trade_partner(g, st, s, &rs);
-    if (partner >= 0) spawn_trade_ship(g, st, s, partner);
+    if (partner >= 0) spawn_trade_ship(g, s, partner);
 }
 
 static void trade_complete(OfeGame *g, int32_t s, PlayerId orig, PlayerId src_owner, PlayerId dst_owner) {
@@ -610,7 +570,7 @@ static void trade_tick(OfeGame *g, ShipsState *st, int32_t s) {
     UnitId id = unit_id_of_slot(g, s);
     PlayerId owner = u->owner[s];
     PlayerId orig = u->aux2[s];
-    if (u->path[s].len == 0 && u->target_unit[s] < 0) return; /* added by a state edit: stays put */
+    if (u->target_unit[s] < 0) return; /* added by a state edit: stays put */
     if (owner != orig) u->timer[s] = 1;
     bool captured = u->timer[s] != 0;
 
@@ -630,42 +590,47 @@ static void trade_tick(OfeGame *g, ShipsState *st, int32_t s) {
     }
     if (captured && (dp < 0 || owner != dst_owner)) {
         /* A pirate prize sails to the captor's nearest port on this water body. */
-        const WaterGraph *wg = water_graph(g->map);
-        int32_t comp = water_tile_component(wg, g->map, u->tile[s]);
+        int32_t comp = water_comp(g, u->tile[s]);
         int32_t best = -1;
         int32_t best_d = 0;
         for (int32_t i = 0; i < st->ports.len; i++) {
             int32_t q = st->ports.data[i];
             if (!u->alive[q] || u->owner[q] != owner || (u->flags[q] & (OFE_UF_UNDER_CONSTRUCTION | OFE_UF_MARKED_FOR_DELETION))) continue;
-            if (comp < 0 || !tile_touches_comp(wg, g->map, u->tile[q], comp)) continue;
+            if (!touches_comp(g, u->tile[q], comp)) continue;
             int32_t d = map_manhattan(g->map, u->tile[q], u->tile[s]);
             if (best < 0 || d < best_d) {
                 best = q;
                 best_d = d;
             }
         }
-        TileRef from = u->tile[s], to = best >= 0 ? u->tile[best] : -1;
-        if (best < 0 || water_find_path_quick(wg, g->map, &from, 1, to, &st->route) < 0) {
+        if (best < 0) {
             unit_destroy(g, id, 0);
             return;
         }
         u->target_unit[s] = unit_id_of_slot(g, best);
-        u->target_tile[s] = to;
-        IntVec_copy(&u->path[s], &st->route);
-        u->path_pos[s] = 0;
+        u->target_tile[s] = u->tile[best];
         dp = best;
         dst_owner = owner;
     }
 
-    IntVec *path = &u->path[s];
-    if (u->path_pos[s] + 1 >= path->len || u->tile[s] == u->tile[dp]) {
+    if (u->tile[s] == u->tile[dp]) {
         trade_complete(g, s, orig, src_owner, dst_owner);
         return;
     }
-    TileRef next = path->data[++u->path_pos[s]];
-    if (map_is_water(g->map, next) && map_is_shoreline(g->map, next)) u->aux3[s] = g->tick;
-    unit_move(g, s, next);
-    u->aux0[s]++;
+    TileRef next;
+    switch (ts_water_next(tsw(g), &u->pf[s], u->tile[s], u->tile[dp], 0, &next)) {
+    case TS_PATH_COMPLETE:
+        trade_complete(g, s, orig, src_owner, dst_owner);
+        break;
+    case TS_PATH_NEXT:
+        if (map_is_water(g->map, next) && map_is_shoreline(g->map, next)) u->aux3[s] = g->tick;
+        unit_move(g, s, next);
+        u->aux0[s]++;
+        break;
+    default: /* a captured ship that cannot find a route */
+        unit_destroy(g, id, 0);
+        break;
+    }
 }
 
 /* ---- Warships: helpers --------------------------------------------------------------- */
@@ -715,33 +680,7 @@ static void ws_record_kill(OfeGame *g, UnitId shooter, int target_type) {
     }
 }
 
-/* Follows the unit's route to `target`, (re)routing when it has none, has
- * left it, or its end is more than `tol` tiles from the target. One tile per
- * call. */
-static int ws_move(OfeGame *g, ShipsState *st, int32_t s, TileRef target, int tol) {
-    UnitTable *u = &g->units;
-    if (u->tile[s] == target) return MOVE_ARRIVED;
-    IntVec *path = &u->path[s];
-    int32_t pos = u->path_pos[s];
-    bool ok = path->len > 0 && pos >= 0 && pos + 1 < path->len && path->data[pos] == u->tile[s] &&
-              map_manhattan(g->map, path->data[path->len - 1], target) <= tol;
-    if (!ok) {
-        TileRef from = u->tile[s];
-        if (water_find_path(water_graph(g->map), g->map, &from, 1, target, &st->route) < 0) return MOVE_FAILED;
-        IntVec_copy(path, &st->route);
-        u->path_pos[s] = pos = 0;
-        if (path->len < 2) return u->tile[s] == target ? MOVE_ARRIVED : MOVE_FAILED;
-    }
-    u->path_pos[s] = ++pos;
-    unit_move(g, s, path->data[pos]);
-    return MOVE_STEPPED;
-}
-
-static void ws_stop_moving(UnitTable *u, int32_t s) {
-    u->target_tile[s] = -1;
-    u->path[s].len = 0;
-    u->path_pos[s] = 0;
-}
+static void ws_stop_moving(UnitTable *u, int32_t s) { u->target_tile[s] = -1; }
 
 /* ---- Warships: shells ------------------------------------------------------------------- */
 
@@ -820,12 +759,11 @@ static void shell_tick(OfeGame *g, int32_t s) {
 /* The owner's finished port nearest to `tile` (Manhattan) on water body `comp`, or -1. */
 static int32_t nearest_port_on_comp(OfeGame *g, PlayerId p, TileRef tile, int32_t comp) {
     const UnitTable *u = &g->units;
-    const WaterGraph *wg = water_graph(g->map);
     int32_t best = -1, best_d = 0;
     for (int32_t i = 0; i < u->count; i++) {
         if (!u->alive[i] || u->type[i] != OFE_UNIT_PORT || u->owner[i] != p) continue;
         if (u->flags[i] & OFE_UF_UNDER_CONSTRUCTION) continue;
-        if (!tile_touches_comp(wg, g->map, u->tile[i], comp)) continue;
+        if (!touches_comp(g, u->tile[i], comp)) continue;
         int32_t d = map_manhattan(g->map, u->tile[i], tile);
         if (best < 0 || d < best_d) {
             best = i;
@@ -866,9 +804,8 @@ bool ships_move_warship(OfeGame *g, PlayerId p, UnitId id, TileRef tile) {
     UnitTable *u = &g->units;
     if (s < 0 || u->type[s] != OFE_UNIT_WARSHIP || u->owner[s] != p) return false;
     if (tile < 0 || tile >= g->map->num_tiles || map_is_land(g->map, tile)) return false;
-    const WaterGraph *wg = water_graph(g->map);
-    int32_t comp = water_tile_component(wg, g->map, tile);
-    if (comp < 0 || !tile_touches_comp(wg, g->map, u->tile[s], comp)) return false;
+    int32_t comp = water_comp(g, tile);
+    if (comp < 0 || !touches_comp(g, u->tile[s], comp)) return false;
     u->aux0[s] = tile + 1;
     u->timer[s] = g->tick; /* no repair retreat for a while */
     if (ws_state(u, s) != WS_PATROL) {
@@ -914,9 +851,8 @@ static bool ws_port_full(const OfeGame *g, const ShipsState *st, int32_t port, i
  * with room. Returns the port slot or -1. */
 static int32_t ws_nearest_port(OfeGame *g, const ShipsState *st, int32_t s, bool skip_full, int64_t *d2_out) {
     const UnitTable *u = &g->units;
-    const WaterGraph *wg = water_graph(g->map);
     PlayerId owner = u->owner[s];
-    int32_t comp = water_tile_component(wg, g->map, u->tile[s]);
+    int32_t comp = water_comp(g, u->tile[s]);
     if (comp < 0) return -1;
     int32_t best = -1;
     int64_t best_d = 0;
@@ -924,7 +860,7 @@ static int32_t ws_nearest_port(OfeGame *g, const ShipsState *st, int32_t s, bool
         int32_t q = st->ports.data[i];
         if (!u->alive[q] || u->owner[q] != owner) continue;
         if (skip_full && ws_port_full(g, st, q, s)) continue;
-        if (!tile_touches_comp(wg, g->map, u->tile[q], comp)) continue;
+        if (!touches_comp(g, u->tile[q], comp)) continue;
         int64_t d = dist2(g->map, u->tile[s], u->tile[q]);
         if (best < 0 || d < best_d) {
             best = q;
@@ -1038,13 +974,12 @@ static int32_t ws_find_target(OfeGame *g, ShipsState *st, int32_t s, bool with_t
         if (type != OFE_UNIT_WARSHIP && ws_shell_in_flight(g, st, owner, unit_id_of_slot(g, q))) continue;
         if (type == OFE_UNIT_TRADE_SHIP) {
             if (trade_ready < 0) {
-                const WaterGraph *wg = water_graph(g->map);
-                comp = water_tile_component(wg, m, u->tile[s]);
+                comp = water_comp(g, u->tile[s]);
                 trade_ready = 0;
                 for (int32_t k = 0; k < st->ports.len && comp >= 0 && !trade_ready; k++) {
                     int32_t pp = st->ports.data[k];
                     trade_ready = u->alive[pp] && u->owner[pp] == owner && !(u->flags[pp] & (OFE_UF_UNDER_CONSTRUCTION | OFE_UF_MARKED_FOR_DELETION)) &&
-                                  tile_touches_comp(wg, m, u->tile[pp], comp);
+                                  touches_comp(g, u->tile[pp], comp);
                 }
             }
             if (!trade_ready) continue;
@@ -1081,9 +1016,8 @@ static void ws_shoot(OfeGame *g, int32_t s) {
 static TileRef ws_random_patrol_tile(OfeGame *g, int32_t s) {
     const UnitTable *u = &g->units;
     const OfeMap *m = g->map;
-    const WaterGraph *wg = water_graph(g->map);
     TileRef centre = ws_patrol_tile(u, s);
-    int32_t comp = water_tile_component(wg, m, u->tile[s]);
+    int32_t comp = water_comp(g, u->tile[s]);
     uint64_t rs = rng_derive(g->seed, ((uint64_t)g->tick << 24) ^ (uint64_t)s ^ 0x9A7201ull << 40);
     int range = WARSHIP_PATROL_RANGE;
     for (int pass = 0; pass < 2; pass++) { /* second pass accepts the shoreline */
@@ -1094,24 +1028,31 @@ static TileRef ws_random_patrol_tile(OfeGame *g, int32_t s) {
             if (!map_in_bounds(m, x, y)) continue;
             TileRef t = map_ref(m, x, y);
             if (map_is_land(m, t) || (pass == 0 && map_is_shoreline(m, t))) continue;
-            if (comp >= 0 && water_tile_component(wg, m, t) != comp) continue;
+            if (comp >= 0 && !touches_comp(g, t, comp)) continue;
             return t;
         }
     }
     return -1;
 }
 
-static void ws_patrol(OfeGame *g, ShipsState *st, int32_t s) {
+static void ws_patrol(OfeGame *g, int32_t s) {
     UnitTable *u = &g->units;
     if (u->target_tile[s] < 0) {
         u->target_tile[s] = ws_random_patrol_tile(g, s);
         if (u->target_tile[s] < 0) return;
     }
-    int r = ws_move(g, st, s, u->target_tile[s], 0);
-    if (r != MOVE_STEPPED) ws_stop_moving(u, s);
+    TileRef node;
+    switch (ts_water_next(tsw(g), &u->pf[s], u->tile[s], u->target_tile[s], 0, &node)) {
+    case TS_PATH_COMPLETE:
+        ws_stop_moving(u, s);
+        unit_move(g, s, node);
+        break;
+    case TS_PATH_NEXT: unit_move(g, s, node); break;
+    default: ws_stop_moving(u, s); break;
+    }
 }
 
-static void ws_hunt(OfeGame *g, ShipsState *st, int32_t s) {
+static void ws_hunt(OfeGame *g, int32_t s) {
     UnitTable *u = &g->units;
     for (int i = 0; i < 2; i++) {
         int32_t t = unit_lookup(g, u->target_unit[s]);
@@ -1125,7 +1066,7 @@ static void ws_hunt(OfeGame *g, ShipsState *st, int32_t s) {
             return;
         }
         if (dist <= WARSHIP_GREEDY_DIST) {
-            /* Close in directly: routes on the coarse map are too rough up close. */
+            /* Close in directly: routes on the mini map are too rough up close. */
             TileRef nb[4], best = -1;
             int k = map_neighbors4(g->map, u->tile[s], nb);
             int32_t best_d = dist;
@@ -1142,7 +1083,15 @@ static void ws_hunt(OfeGame *g, ShipsState *st, int32_t s) {
                 continue;
             }
         }
-        if (ws_move(g, st, s, tt, 8) == MOVE_FAILED) u->path[s].len = 0;
+        TileRef node;
+        TsPathStatus r = ts_water_next(tsw(g), &u->pf[s], u->tile[s], tt, WARSHIP_CAPTURE_DIST, &node);
+        if (r == TS_PATH_COMPLETE) {
+            unit_capture(g, unit_id_of_slot(g, t), u->owner[s]);
+            ws_add_progress(u, s, WARSHIP_VET_TRANSPORT_KILLS);
+            u->target_unit[s] = -1;
+            return;
+        }
+        if (r == TS_PATH_NEXT) unit_move(g, s, node);
     }
 }
 
@@ -1177,11 +1126,19 @@ static bool ws_handle_retreat(OfeGame *g, ShipsState *st, int32_t s) {
         return true; /* wait for a free berth */
     }
     u->target_tile[s] = port_tile;
-    if (ws_move(g, st, s, port_tile, 0) == MOVE_FAILED) {
+    TileRef node;
+    switch (ts_water_next(tsw(g), &u->pf[s], u->tile[s], port_tile, 0, &node)) {
+    case TS_PATH_COMPLETE:
+        unit_move(g, s, node);
+        if (node == port_tile) u->target_tile[s] = -1;
+        break;
+    case TS_PATH_NEXT: unit_move(g, s, node); break;
+    default: {
         int32_t np = ws_nearest_port(g, st, s, true, NULL);
-        u->path[s].len = 0;
         if (np < 0) ws_cancel_retreat(u, s, true);
         else ws_set_port_tile(u, s, u->tile[np]);
+        break;
+    }
     }
     return true;
 }
@@ -1224,11 +1181,11 @@ static void warship_tick(OfeGame *g, ShipsState *st, int32_t s) {
     u->target_unit[s] = t >= 0 ? unit_id_of_slot(g, t) : -1;
     if (t >= 0 && u->type[t] != OFE_UNIT_TRADE_SHIP) {
         ws_shoot(g, s);
-        ws_patrol(g, st, s);
+        ws_patrol(g, s);
     } else if (t >= 0) {
-        ws_hunt(g, st, s);
+        ws_hunt(g, s);
     } else {
-        ws_patrol(g, st, s);
+        ws_patrol(g, s);
     }
 }
 
