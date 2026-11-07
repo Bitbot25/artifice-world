@@ -275,6 +275,7 @@ void ofe_game_destroy(OfeGame *g) {
     AllianceRequestVec_free(&g->alliance_requests);
     AllianceRequestVec_free(&g->past_requests);
     EmbargoVec_free(&g->embargoes);
+    free(g->embargo_bits);
     DonationVec_free(&g->donations);
     IntentVec_free(&g->pending_intents);
     EventVec_free(&g->events);
@@ -320,6 +321,7 @@ void ofe_game_copy_into(OfeGame *dst, const OfeGame *src) {
     AllianceRequestVec_copy(&dst->alliance_requests, &src->alliance_requests);
     AllianceRequestVec_copy(&dst->past_requests, &src->past_requests);
     EmbargoVec_copy(&dst->embargoes, &src->embargoes);
+    embargo_bits_copy(dst, src);
     DonationVec_copy(&dst->donations, &src->donations);
     IntentVec_copy(&dst->pending_intents, &src->pending_intents);
     EventVec_copy(&dst->events, &src->events);

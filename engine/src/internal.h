@@ -399,7 +399,12 @@ struct OfeGame {
     AllianceVec alliances;
     AllianceRequestVec alliance_requests; /* pending */
     AllianceRequestVec past_requests; /* recent, for the request cooldown */
-    EmbargoVec embargoes; /* (from, to) pairs; small */
+    EmbargoVec embargoes; /* (from, to) pairs, in creation order */
+    /* Lookup cache over embargoes: bit `to` of row `from` is set iff (from, to)
+     * is in the list. Attacks create temporary embargoes, so the list gets
+     * long and trade/AI checks would otherwise scan it. */
+    uint64_t *embargo_bits;
+    int32_t embargo_rows, embargo_words; /* rows x 64-bit words per row */
     DonationVec donations; /* recent donations (cooldown per recipient) */
 
     /* Nation relations: relation[row * players.cap + other], in [-100, 100]. */
@@ -469,7 +474,8 @@ void player_add_gold(OfeGame *g, PlayerId p, int64_t gold);
 int64_t player_remove_gold(OfeGame *g, PlayerId p, int64_t gold);
 double player_relation(const OfeGame *g, PlayerId self, PlayerId other);
 void player_update_relation(OfeGame *g, PlayerId self, PlayerId other, double delta);
-bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to); /* from embargoes to */
+bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to); /* from embargoes to; O(1) */
+void embargo_bits_copy(OfeGame *dst, const OfeGame *src);
 bool player_can_trade(const OfeGame *g, PlayerId a, PlayerId b);
 void player_add_embargo(OfeGame *g, PlayerId from, PlayerId to, bool temporary);
 void player_stop_embargo(OfeGame *g, PlayerId from, PlayerId to);
