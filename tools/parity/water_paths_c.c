@@ -4,16 +4,15 @@
  *
  *   build-parity/water_paths_c <map dir> <compact 0|1> <reference.txt>
  *
- * Prints the match rate per query kind, the first mismatches, and the time per
- * query of pathfind_ts.c against the default pathfinder (pathfind.c).
- * Exit status 1 if anything differs.
+ * Prints the match rate per query kind, the first mismatches and the time per
+ * query (repeated point queries come from the route memo). Exit status 1 if
+ * anything differs.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include "pathfind.h"
 #include "pathfind_ts.h"
 
 static double now_ms(void) {
@@ -40,15 +39,14 @@ int main(int argc, char **argv) {
     double tb = now_ms();
     const TsWater *w = ts_water(m);
     double build_ms = now_ms() - tb;
-    const WaterGraph *wg = water_graph(m);
     if (!read_line(f) || line_buf[0] != 'M') return 2;
     printf("%s: map %dx%d mini %dx%d, abstract nodes %d, graph build %.0f ms\n", argv[3], m->width, m->height,
            m->mini_width, m->mini_height, ts_water_node_count(w), build_ms);
 
     long total[3] = {0}, ok[3] = {0}, nulls = 0, shown = 0;
-    double ts_ms = 0, def_ms = 0, def_ms2 = 0, tsp_ms = 0;
-    long ts_calls = 0, def_calls = 0, tsp_calls = 0;
-    IntVec got = {0}, def = {0};
+    double ts_ms = 0, tsp_ms = 0;
+    long ts_calls = 0, tsp_calls = 0;
+    IntVec got = {0};
     char *qline = NULL;
     while (read_line(f)) {
         free(qline);
@@ -82,14 +80,6 @@ int main(int argc, char **argv) {
             if (kind == 0 && from[0] >= 0 && from[0] < m->num_tiles && to >= 0 && to < m->num_tiles) {
                 tsp_ms += dt;
                 tsp_calls++;
-                /* default pathfinder, cold then warm (it memoises single routes) */
-                t0 = now_ms();
-                water_find_path(wg, m, from, 1, to, &def);
-                def_ms += now_ms() - t0;
-                t0 = now_ms();
-                water_find_path(wg, m, from, 1, to, &def);
-                def_ms2 += now_ms() - t0;
-                def_calls++;
             }
         } else {
             TileRef from = (TileRef)next_int(&q), dst = (TileRef)next_int(&q);
@@ -140,9 +130,7 @@ int main(int argc, char **argv) {
         o += ok[k];
     }
     printf("  total %ld/%ld (%.3f%%), %ld null results\n", o, t, t ? 100.0 * o / t : 100.0, nulls);
-    printf("  cost per point query: pathfind_ts %.3f ms; default pathfinder %.3f ms cold, %.3f ms warm (%ld queries)\n",
-           tsp_calls ? tsp_ms / tsp_calls : 0, def_calls ? def_ms / def_calls : 0,
-           def_calls ? def_ms2 / def_calls : 0, def_calls);
+    printf("  cost per point query: %.3f ms (%ld queries)\n", tsp_calls ? tsp_ms / tsp_calls : 0, tsp_calls);
     printf("  all calls incl. voyage steps: %.4f ms/call over %ld calls\n", ts_calls ? ts_ms / ts_calls : 0, ts_calls);
     return o == t ? 0 : 1;
 }

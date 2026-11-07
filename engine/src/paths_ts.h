@@ -21,8 +21,8 @@
  * of an OfeMap so the half-resolution "mini map" the rail pathfinder runs on
  * can be passed in. NOTE: OpenFront's mini map is a separate file (map4x.bin
  * for normal maps, map16x.bin for compact ones); it is NOT the 2x2 reduction
- * that map.c derives. Use ts_mini_terrain_load() (or make map.c do so in the
- * parity build) for exact rails.
+ * that ofe_map_from_terrain() derives. ofe_map_load() reads the real one into
+ * OfeMap.mini_terrain; ts_mini_terrain_load() loads it for standalone tools.
  */
 #ifndef OFE_PATHS_TS_H
 #define OFE_PATHS_TS_H
@@ -61,7 +61,11 @@ bool ts_path_rng_chance(TsPathRng *r, int32_t odds); /* nextInt(0, odds) == 0 */
 
 /* ---- Path results ------------------------------------------------------------ */
 
+/* Shared with pathfind_ts.h. */
+#ifndef OFE_TS_PATH_STATUS
+#define OFE_TS_PATH_STATUS
 typedef enum TsPathStatus { TS_PATH_NEXT = 0, TS_PATH_COMPLETE = 2, TS_PATH_NOT_FOUND = 3 } TsPathStatus;
+#endif
 
 typedef struct TsPathResult {
     TsPathStatus status;

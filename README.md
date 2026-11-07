@@ -63,7 +63,7 @@ State edits for sensitivity tests and scenario setup: `set_owner`,
 | `engine/include/ofe_mapstatic.h` | Per-map static outputs for feature extraction ([docs](docs/mapstatic.md)) |
 | `engine/src/internal.h` | Data layout: map, copy-on-write tiles, struct-of-arrays tables |
 | `engine/src/subsystems.h` | Contract between the core and the unit / AI modules |
-| `engine/src/*.c` | One file per subsystem (module map in `internal.h`): core (`game`, `tiles`, `player`, `attack`, `cluster`, `spawn`, `intent`, `win`, `events`, `edit`, `units`), `structures`, `ships` + `pathfind`, `nukes`, `rail`, `doomsday`, `ai_*`, `mapstatic` |
+| `engine/src/*.c` | One file per subsystem (module map in `internal.h`): core (`game`, `tiles`, `player`, `attack`, `cluster`, `spawn`, `intent`, `win`, `events`, `edit`, `units`), `structures`, `ships` + `pathfind_ts` (OpenFront's water pathfinder), `nukes`, `rail`, `doomsday`, `ai_*`, `mapstatic` |
 | `python/artifice_engine/` | ctypes bindings, numpy API, `vec.py` (batched envs), `mapstatic.py` (cached static features), `ts_import.py` (TypeScript state import) |
 | `tests/c`, `tests/python` | Tests (synthetic maps; real maps when `OFE_MAPS_DIR` is set) |
 | `tools/fidelity/` | Statistical comparison against the TypeScript engine ([report](tools/fidelity/REPORT.md)) |

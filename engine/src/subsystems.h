@@ -21,13 +21,12 @@
 /* map, e.g. water components or pathfinding graphs. Thread-safe.            */
 /* ------------------------------------------------------------------------ */
 enum MapCacheSlot {
-    MAP_CACHE_SHIPS = 0, /* ships.c: water components, pathfinding graph */
     MAP_CACHE_STRUCTURES = 1,
     MAP_CACHE_NUKES = 2,
     MAP_CACHE_RAIL = 3,
     MAP_CACHE_AI = 4,
     MAP_CACHE_STATIC = 5, /* mapstatic.c */
-    MAP_CACHE_TS_WATER = 6, /* pathfind_ts.c (TS-parity build) */
+    MAP_CACHE_TS_WATER = 6, /* pathfind_ts.c: water pathfinder, water bodies, route memo */
     MAP_CACHE_COUNT = 8
 };
 typedef void *(*MapCacheBuild)(const OfeMap *map);
@@ -120,6 +119,8 @@ UnitId ships_build_warship(OfeGame *g, PlayerId p, TileRef tile);
 bool ships_move_warship(OfeGame *g, PlayerId p, UnitId id, TileRef tile);
 /* Water body id of a water tile (same id = connected by water), -1 for land. */
 int32_t ships_water_component(OfeGame *g, TileRef tile);
+/* OpenFront's hasWaterComponent: does tile (a port, say) touch water body comp? */
+bool ships_touches_water(OfeGame *g, TileRef tile, int32_t comp);
 /* Shore tile of p from which a boat could reach dst, or -1. */
 TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst);
 /* Fires a shell from `from` at the unit in target_slot (warships and

@@ -27,7 +27,7 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 | Land attack on terra nullius, 9 cells | tiles conquered: median delta 0.0%, p90 0.3% |
 | Land attack on a player, 36 cells | tiles conquered: median +0.6%, p90 1.9%, worst cell +2.8% |
 | Wiping out an 80-tile player; enclave annexation; city and defense post | identical or within 0.2% |
-| Boat travel time, 10 routes (25 to 350 tiles) | all land in both except boat_d350_0 (neither within 700 ticks); per-route C/TS ratio mean 0.98 (min 0.69, max 1.12); boat_d350_1: 696 vs 697 ticks |
+| Boat travel time, 10 routes (25 to 350 tiles) | identical on every route (per-route C/TS ratio 1.000; boat_d350_0 lands in neither within 700 ticks); ships use OpenFront's own water pathfinder |
 | Nation spawn size at t=0 | 46.6 vs 47.2 tiles per nation (C used to give a fixed 49.9) |
 | Tribes alive at t=600 | 14.5 vs 12.5 (was 23 vs 12.5); all gone by t=2400 in both |
 | Nation land at t=600 / t=6000 | 139k vs 140k / 156k vs 158k tiles; nations alive at t=6000: 13.5 vs 12.5 |
@@ -48,30 +48,30 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 * AI alliance answers are given on the AI's own turn (OpenFront's AIs look at their inbox only when they wake up):
   nations reject everything asked during the spawn phase, tribes accept everything, and neither asks to extend an
   alliance on its own (only an agent's extension ask is answered).
-* Ship routing: both routing grids cut straits one or two tiles wide, which closed the Mediterranean, Black Sea and
-  Baltic and sent Arctic to Pacific boats round the Atlantic (1250 ticks instead of about 700 in boat_d350_1). A full-
-  resolution grid is now searched when both grids fail, or when a grid route is over three times the straight line
-  (greedy A*, built once per map, memoised). All 297 random shore pairs of the world test are routable (9 failed before).
-  AI "could a boat go there" probes no longer search at all (same water body is enough).
-* A cancelled transport ship sails to the own shore nearest to where it is (25% of the troops lost on arrival), not
-  back along its route.
+* Ship routing is OpenFront's own water pathfinder in both builds (`engine/src/pathfind_ts.c`: mini map from
+  `map4x.bin`/`map16x.bin`, hierarchical A*, smoothing, shore coercing; verified tile for tile against TS). It
+  replaces the weighted grid A* with string pulling and its full-resolution strait fallback, which were slower and gave
+  routes that differed by tens of percent (boat_d50_1: 74 vs 107 ticks, boat_d200_1: 414 vs 371). Launch and retreat
+  shores follow `closestShoreByWater` (route-based, with `refineStartTile`), water bodies are `getWaterComponent`.
+  Straits, the Bering route (about 700 ticks) and all 297 random shore pairs of the world test are routable. Routes are
+  memoised per map; ships hold a stepper (`WaterPathFinder.next`) in the unit table.
+* A cancelled transport ship sails to the nearest own shore by water, as in OpenFront (25% of the troops lost on
+  arrival), not back along its route.
 
 **Remaining differences (not fixed)**
 
-1. Pathfinding is not OpenFront's hierarchical A*: routes come from weighted A* on routing grids plus string pulling.
-   Straight stretches take the same number of ticks, detours can differ by tens of percent (boat_d50_1: 74 vs 107 ticks,
-   boat_d200_1: 414 vs 371).
-2. The retreat shore is chosen by straight-line distance, OpenFront's closestShoreByWater measures by water.
-3. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here.
-4. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
+1. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here. Their
+   routes are exact, their decisions are not (the leader-land-share row of the AI section has n=6 and flags at some
+   checkpoints from run to run; it is sampling noise there).
+2. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
    not checked against hostile warships, and "largest cluster" boxes are the border bounding box. Medium is what the
    comparison runs.
-5. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
+3. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
    trajectory; no nuke price memory or strike follow-ups for nations. A 20-minute Impossible world game launches about
    250 nukes in C; there is no TS number to compare it with yet.
-6. Enclave annexation uses no diagonal-pinch pass (nuke craters).
-7. No emojis, no tutorial logic, no team-spawn areas.
-8. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
+4. Enclave annexation uses no diagonal-pinch pass (nuke craters).
+5. No emojis, no tutorial logic, no team-spawn areas.
+6. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
    confidence intervals (leader share, nations alive at t=6000).
 
 ## 1. Idle player: troop and gold curves
@@ -96,17 +96,17 @@ Worst relative difference over the whole curve (mean over seeds): troops 0.00e+0
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| tiles @ t=100 | 12 | 337.2 | 11.29 | 338.0 | 12.92 | +0.2% | 0.17 | 0.99 | ok |
-| troops @ t=100 | 12 | 61,906 | 124.1 | 61,914 | 134.7 | +0.0% | 0.17 | 0.99 | ok |
+| tiles @ t=100 | 12 | 337.2 | 11.29 | 336.8 | 12.72 | -0.1% | 0.17 | 0.99 | ok |
+| troops @ t=100 | 12 | 61,906 | 124.1 | 61,900 | 141.9 | -0.0% | 0.17 | 0.99 | ok |
 | gold @ t=100 | 12 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| tiles @ t=500 | 12 | 6,828 | 45.28 | 6,833 | 51.56 | +0.1% | 0.25 | 0.79 | ok |
-| troops @ t=500 | 12 | 285,883 | 803.2 | 285,980 | 848.6 | +0.0% | 0.25 | 0.79 | ok |
+| tiles @ t=500 | 12 | 6,828 | 45.28 | 6,834 | 45.44 | +0.1% | 0.42 | 0.19 | ok |
+| troops @ t=500 | 12 | 285,883 | 803.2 | 285,935 | 819.1 | +0.0% | 0.33 | 0.43 | ok |
 | gold @ t=500 | 12 | 50,000 | 0 | 50,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| tiles @ t=1000 | 12 | 29,613 | 81.10 | 29,616 | 87.90 | +0.0% | 0.17 | 0.99 | ok |
-| troops @ t=1000 | 12 | 632,156 | 1,080 | 632,248 | 1,228 | +0.0% | 0.25 | 0.79 | ok |
+| tiles @ t=1000 | 12 | 29,613 | 81.10 | 29,633 | 87.50 | +0.1% | 0.42 | 0.19 | ok |
+| troops @ t=1000 | 12 | 632,156 | 1,080 | 632,306 | 1,131 | +0.0% | 0.33 | 0.43 | ok |
 | gold @ t=1000 | 12 | 100,000 | 0 | 100,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | tiles @ t=2000 | 12 | 55,419 | 0 | 55,419 | 0 | +0.0% | 0 | 1.00 | ok |
-| troops @ t=2000 | 12 | 1,476,486 | 175.7 | 1,476,521 | 198.2 | +0.0% | 0.25 | 0.79 | ok |
+| troops @ t=2000 | 12 | 1,476,486 | 175.7 | 1,476,514 | 186.2 | +0.0% | 0.33 | 0.43 | ok |
 | gold @ t=2000 | 12 | 200,000 | 0 | 200,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | tiles @ t=4000 | 12 | 55,419 | 0 | 55,419 | 0 | +0.0% | 0 | 1.00 | ok |
 | troops @ t=4000 | 12 | 1,503,356 | 0 | 1,503,356 | 0 | +0.0% | 0 | 1.00 | ok |
@@ -122,27 +122,27 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 
 | metric | cells | median Δ | p90 |Δ| | cells DIFF | cells warn |
 |---|---|---|---|---|---|
-| tiles_t30 | 9 | -0.2% | 1.0% | 0 | 0 |
-| tiles_t100 | 9 | -0.2% | 1.0% | 0 | 0 |
-| tiles_final | 9 | -0.2% | 1.0% | 0 | 0 |
+| tiles_t30 | 9 | +0.0% | 0.4% | 0 | 0 |
+| tiles_t100 | 9 | +0.0% | 0.4% | 0 | 0 |
+| tiles_final | 9 | +0.0% | 0.4% | 0 | 0 |
 | loss | 9 | +0.0% | 0.0% | 0 | 0 |
-| loss_per_tile | 9 | +0.2% | 1.0% | 0 | 0 |
-| duration | 9 | +0.0% | 1.4% | 0 | 0 |
+| loss_per_tile | 9 | +0.0% | 0.5% | 0 | 0 |
+| duration | 9 | +0.0% | 1.0% | 0 | 0 |
 | done | 9 | +0.0% | 0.0% | 0 | 0 |
 
 <details><summary>per-cell `tiles_final`</summary>
 
 | cell | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| tn_plains_x1000 | 12 | 60.17 | 0.577 | 60.00 | 0.953 | -0.3% | 0.25 | 0.79 | ok |
-| tn_plains_x5000 | 12 | 280.4 | 5.53 | 280.8 | 4.88 | +0.1% | 0.17 | 0.99 | ok |
-| tn_plains_x20000 | 12 | 1,165 | 11.56 | 1,164 | 11.03 | -0.1% | 0.25 | 0.79 | ok |
-| tn_highland_x1000 | 12 | 51.25 | 0.866 | 50.75 | 1.06 | -1.0% | 0.25 | 0.79 | ok |
-| tn_highland_x5000 | 12 | 244.5 | 3.21 | 244.7 | 3.23 | +0.1% | 0.17 | 0.99 | ok |
-| tn_highland_x20000 | 12 | 1,022 | 19.23 | 1,013 | 24.59 | -0.9% | 0.33 | 0.43 | ok |
-| tn_mountain_x1000 | 12 | 45.92 | 0.669 | 45.67 | 0.888 | -0.5% | 0.17 | 0.99 | ok |
-| tn_mountain_x5000 | 12 | 219.4 | 1.78 | 219.4 | 1.93 | +0.0% | 0.17 | 0.99 | ok |
-| tn_mountain_x20000 | 12 | 890.4 | 6.58 | 888.7 | 5.68 | -0.2% | 0.25 | 0.79 | ok |
+| tn_plains_x1000 | 12 | 60.17 | 0.577 | 59.92 | 0.515 | -0.4% | 0.17 | 0.99 | ok |
+| tn_plains_x5000 | 12 | 280.4 | 5.53 | 280.4 | 5.88 | +0.0% | 0.17 | 0.99 | ok |
+| tn_plains_x20000 | 12 | 1,165 | 11.56 | 1,165 | 10.47 | +0.0% | 0.17 | 0.99 | ok |
+| tn_highland_x1000 | 12 | 51.25 | 0.866 | 51.42 | 0.996 | +0.3% | 0.083 | 1 | ok |
+| tn_highland_x5000 | 12 | 244.5 | 3.21 | 244.9 | 3.58 | +0.2% | 0.25 | 0.79 | ok |
+| tn_highland_x20000 | 12 | 1,022 | 19.23 | 1,017 | 32.20 | -0.6% | 0.33 | 0.43 | ok |
+| tn_mountain_x1000 | 12 | 45.92 | 0.669 | 45.92 | 0.9 | +0.0% | 0.083 | 1 | ok |
+| tn_mountain_x5000 | 12 | 219.4 | 1.78 | 219.4 | 1.62 | +0.0% | 0.083 | 1 | ok |
+| tn_mountain_x20000 | 12 | 890.4 | 6.58 | 889.8 | 10.62 | -0.1% | 0.25 | 0.79 | ok |
 
 </details>
 
@@ -166,15 +166,15 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 
 | cell | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| tn_plains_x1000 | 12 | 11.67 | 0.492 | 11.83 | 0.389 | +1.4% | 0.17 | 0.99 | ok |
+| tn_plains_x1000 | 12 | 11.67 | 0.492 | 11.67 | 0.492 | +0.0% | 0 | 1.00 | ok |
 | tn_plains_x5000 | 12 | 20.75 | 0.452 | 20.67 | 0.492 | -0.4% | 0.083 | 1 | ok |
-| tn_plains_x20000 | 12 | 28.67 | 0.492 | 28.83 | 0.577 | +0.6% | 0.083 | 1 | ok |
-| tn_highland_x1000 | 12 | 11.00 | 0 | 10.83 | 0.389 | -1.5% | 0.17 | 0.99 | ok |
-| tn_highland_x5000 | 12 | 20.00 | 0 | 19.92 | 0.289 | -0.4% | 0.083 | 1 | ok |
-| tn_highland_x20000 | 12 | 25.92 | 0.289 | 25.92 | 0.289 | +0.0% | 0 | 1.00 | ok |
+| tn_plains_x20000 | 12 | 28.67 | 0.492 | 29.00 | 0.426 | +1.2% | 0.25 | 0.79 | ok |
+| tn_highland_x1000 | 12 | 11.00 | 0 | 11.00 | 0 | +0.0% | 0 | 1.00 | ok |
+| tn_highland_x5000 | 12 | 20.00 | 0 | 20.00 | 0 | +0.0% | 0 | 1.00 | ok |
+| tn_highland_x20000 | 12 | 25.92 | 0.289 | 25.83 | 0.937 | -0.3% | 0.17 | 0.99 | ok |
 | tn_mountain_x1000 | 12 | 10.00 | 0 | 10.00 | 0 | +0.0% | 0 | 1.00 | ok |
 | tn_mountain_x5000 | 12 | 19.50 | 0.522 | 19.67 | 0.492 | +0.9% | 0.17 | 0.99 | ok |
-| tn_mountain_x20000 | 12 | 25.33 | 0.778 | 25.33 | 0.651 | +0.0% | 0.083 | 1 | ok |
+| tn_mountain_x20000 | 12 | 25.33 | 0.778 | 25.58 | 0.669 | +1.0% | 0.17 | 0.99 | ok |
 
 </details>
 
@@ -188,54 +188,54 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 
 | metric | cells | median Δ | p90 |Δ| | cells DIFF | cells warn |
 |---|---|---|---|---|---|
-| tiles_t30 | 36 | +0.1% | 0.8% | 0 | 0 |
-| tiles_t100 | 36 | +0.1% | 0.7% | 0 | 0 |
-| tiles_final | 36 | +0.1% | 0.7% | 0 | 0 |
+| tiles_t30 | 36 | +0.0% | 0.8% | 0 | 0 |
+| tiles_t100 | 36 | +0.0% | 0.6% | 0 | 0 |
+| tiles_final | 36 | +0.0% | 0.6% | 0 | 0 |
 | loss | 36 | +0.0% | 0.0% | 0 | 0 |
-| loss_per_tile | 36 | -0.1% | 0.7% | 0 | 0 |
-| duration | 36 | +0.0% | 3.1% | 0 | 0 |
+| loss_per_tile | 36 | +0.0% | 0.6% | 0 | 0 |
+| duration | 36 | -0.2% | 2.7% | 0 | 0 |
 | done | 36 | +0.0% | 0.0% | 0 | 0 |
 
 <details><summary>per-cell `tiles_final`</summary>
 
 | cell | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| pvp_plains_d1200_D4000_x3000 | 8 | 37.12 | 0.354 | 37.25 | 0.707 | +0.3% | 0.25 | 0.93 | ok |
-| pvp_plains_d1200_D4000_x10000 | 8 | 163.8 | 1.75 | 163.9 | 1.81 | +0.1% | 0.25 | 0.93 | ok |
-| pvp_plains_d1200_D4000_x30000 | 8 | 991.2 | 22.81 | 989.5 | 21.96 | -0.2% | 0.25 | 0.93 | ok |
-| pvp_plains_d1200_D20000_x3000 | 8 | 32.00 | 0 | 32.00 | 0.535 | +0.0% | 0.12 | 1 | ok |
-| pvp_plains_d1200_D20000_x10000 | 8 | 99.88 | 1.25 | 99.75 | 1.67 | -0.1% | 0.12 | 1 | ok |
-| pvp_plains_d1200_D20000_x30000 | 8 | 371.8 | 4.95 | 370.9 | 4.32 | -0.2% | 0.12 | 1 | ok |
+| pvp_plains_d1200_D4000_x3000 | 8 | 37.12 | 0.354 | 37.00 | 0.535 | -0.3% | 0.12 | 1 | ok |
+| pvp_plains_d1200_D4000_x10000 | 8 | 163.8 | 1.75 | 163.9 | 2.17 | +0.1% | 0.25 | 0.93 | ok |
+| pvp_plains_d1200_D4000_x30000 | 8 | 991.2 | 22.81 | 990.0 | 23.31 | -0.1% | 0.25 | 0.93 | ok |
+| pvp_plains_d1200_D20000_x3000 | 8 | 32.00 | 0 | 32.00 | 0 | +0.0% | 0 | 1.00 | ok |
+| pvp_plains_d1200_D20000_x10000 | 8 | 99.88 | 1.25 | 100.0 | 1.51 | +0.1% | 0.12 | 1 | ok |
+| pvp_plains_d1200_D20000_x30000 | 8 | 371.8 | 4.95 | 372.6 | 4.98 | +0.2% | 0.38 | 0.52 | ok |
 | pvp_plains_d2400_D4000_x3000 | 8 | 38.00 | 0 | 38.00 | 0.535 | +0.0% | 0.12 | 1 | ok |
-| pvp_plains_d2400_D4000_x10000 | 8 | 164.8 | 1.75 | 165.4 | 1.30 | +0.4% | 0.38 | 0.52 | ok |
-| pvp_plains_d2400_D4000_x30000 | 8 | 934.8 | 9.95 | 936.5 | 7.17 | +0.2% | 0.38 | 0.52 | ok |
-| pvp_plains_d2400_D20000_x3000 | 8 | 35.00 | 0 | 35.12 | 0.641 | +0.4% | 0.25 | 0.93 | ok |
-| pvp_plains_d2400_D20000_x10000 | 8 | 109.9 | 1.73 | 110.1 | 1.73 | +0.2% | 0.12 | 1 | ok |
-| pvp_plains_d2400_D20000_x30000 | 8 | 394.6 | 4.34 | 394.4 | 4.98 | -0.1% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D4000_x3000 | 8 | 31.75 | 0.707 | 31.88 | 0.991 | +0.4% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D4000_x10000 | 8 | 140.4 | 3.81 | 141.5 | 4.57 | +0.8% | 0.38 | 0.52 | ok |
-| pvp_highland_d1200_D4000_x30000 | 8 | 877.0 | 12.57 | 877.8 | 13.46 | +0.1% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D20000_x3000 | 8 | 27.62 | 0.518 | 27.50 | 0.926 | -0.5% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D20000_x10000 | 8 | 86.88 | 1.89 | 86.88 | 1.81 | +0.0% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D20000_x30000 | 8 | 325.2 | 10.04 | 323.5 | 10.36 | -0.5% | 0.38 | 0.52 | ok |
-| pvp_highland_d2400_D4000_x3000 | 8 | 32.62 | 0.916 | 32.62 | 1.06 | +0.0% | 0.12 | 1 | ok |
-| pvp_highland_d2400_D4000_x10000 | 8 | 142.6 | 3.85 | 143.1 | 4.32 | +0.4% | 0.25 | 0.93 | ok |
-| pvp_highland_d2400_D4000_x30000 | 8 | 839.5 | 15.11 | 846.0 | 18.45 | +0.8% | 0.38 | 0.52 | ok |
-| pvp_highland_d2400_D20000_x3000 | 8 | 30.38 | 0.916 | 30.25 | 0.886 | -0.4% | 0.12 | 1 | ok |
-| pvp_highland_d2400_D20000_x10000 | 8 | 95.62 | 1.77 | 96.12 | 1.64 | +0.5% | 0.38 | 0.52 | ok |
-| pvp_highland_d2400_D20000_x30000 | 8 | 346.9 | 9.23 | 346.2 | 8.56 | -0.2% | 0.38 | 0.52 | ok |
-| pvp_mountain_d1200_D4000_x3000 | 8 | 26.75 | 0.463 | 27.00 | 0.535 | +0.9% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D4000_x10000 | 8 | 118.4 | 1.06 | 118.5 | 1.07 | +0.1% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D4000_x30000 | 8 | 709.2 | 6.32 | 705.1 | 4.32 | -0.6% | 0.5 | 0.19 | ok |
+| pvp_plains_d2400_D4000_x10000 | 8 | 164.8 | 1.75 | 165.4 | 2.00 | +0.4% | 0.25 | 0.93 | ok |
+| pvp_plains_d2400_D4000_x30000 | 8 | 934.8 | 9.95 | 934.1 | 10.47 | -0.1% | 0.25 | 0.93 | ok |
+| pvp_plains_d2400_D20000_x3000 | 8 | 35.00 | 0 | 35.00 | 0 | +0.0% | 0 | 1.00 | ok |
+| pvp_plains_d2400_D20000_x10000 | 8 | 109.9 | 1.73 | 110.1 | 1.64 | +0.2% | 0.25 | 0.93 | ok |
+| pvp_plains_d2400_D20000_x30000 | 8 | 394.6 | 4.34 | 395.9 | 4.36 | +0.3% | 0.38 | 0.52 | ok |
+| pvp_highland_d1200_D4000_x3000 | 8 | 31.75 | 0.707 | 32.00 | 0.926 | +0.8% | 0.25 | 0.93 | ok |
+| pvp_highland_d1200_D4000_x10000 | 8 | 140.4 | 3.81 | 141.9 | 4.02 | +1.1% | 0.5 | 0.19 | ok |
+| pvp_highland_d1200_D4000_x30000 | 8 | 877.0 | 12.57 | 877.4 | 12.97 | +0.0% | 0.25 | 0.93 | ok |
+| pvp_highland_d1200_D20000_x3000 | 8 | 27.62 | 0.518 | 27.62 | 0.518 | +0.0% | 0 | 1.00 | ok |
+| pvp_highland_d1200_D20000_x10000 | 8 | 86.88 | 1.89 | 86.88 | 1.89 | +0.0% | 0 | 1.00 | ok |
+| pvp_highland_d1200_D20000_x30000 | 8 | 325.2 | 10.04 | 323.8 | 8.70 | -0.5% | 0.38 | 0.52 | ok |
+| pvp_highland_d2400_D4000_x3000 | 8 | 32.62 | 0.916 | 32.50 | 0.756 | -0.4% | 0.12 | 1 | ok |
+| pvp_highland_d2400_D4000_x10000 | 8 | 142.6 | 3.85 | 143.5 | 3.78 | +0.6% | 0.38 | 0.52 | ok |
+| pvp_highland_d2400_D4000_x30000 | 8 | 839.5 | 15.11 | 845.9 | 12.14 | +0.8% | 0.25 | 0.93 | ok |
+| pvp_highland_d2400_D20000_x3000 | 8 | 30.38 | 0.916 | 30.38 | 0.916 | +0.0% | 0 | 1.00 | ok |
+| pvp_highland_d2400_D20000_x10000 | 8 | 95.62 | 1.77 | 96.00 | 1.85 | +0.4% | 0.38 | 0.52 | ok |
+| pvp_highland_d2400_D20000_x30000 | 8 | 346.9 | 9.23 | 345.2 | 7.70 | -0.5% | 0.38 | 0.52 | ok |
+| pvp_mountain_d1200_D4000_x3000 | 8 | 26.75 | 0.463 | 26.62 | 0.518 | -0.5% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D4000_x10000 | 8 | 118.4 | 1.06 | 118.5 | 0.926 | +0.1% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D4000_x30000 | 8 | 709.2 | 6.32 | 707.4 | 4.07 | -0.3% | 0.5 | 0.19 | ok |
 | pvp_mountain_d1200_D20000_x3000 | 8 | 23.00 | 0 | 23.12 | 0.354 | +0.5% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D20000_x10000 | 8 | 73.88 | 0.641 | 74.25 | 1.04 | +0.5% | 0.25 | 0.93 | ok |
-| pvp_mountain_d1200_D20000_x30000 | 8 | 268.9 | 2.30 | 269.0 | 2.07 | +0.0% | 0.25 | 0.93 | ok |
-| pvp_mountain_d2400_D4000_x3000 | 8 | 27.38 | 0.518 | 27.50 | 0.535 | +0.5% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D20000_x10000 | 8 | 73.88 | 0.641 | 74.00 | 0.756 | +0.2% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D20000_x30000 | 8 | 268.9 | 2.30 | 268.4 | 1.77 | -0.2% | 0.25 | 0.93 | ok |
+| pvp_mountain_d2400_D4000_x3000 | 8 | 27.38 | 0.518 | 27.25 | 0.463 | -0.5% | 0.12 | 1 | ok |
 | pvp_mountain_d2400_D4000_x10000 | 8 | 120.2 | 0.707 | 120.2 | 1.04 | +0.0% | 0.12 | 1 | ok |
-| pvp_mountain_d2400_D4000_x30000 | 8 | 665.0 | 4.93 | 661.5 | 3.02 | -0.5% | 0.62 | 0.05 | ok |
-| pvp_mountain_d2400_D20000_x3000 | 8 | 25.25 | 0.463 | 25.50 | 0.535 | +1.0% | 0.25 | 0.93 | ok |
+| pvp_mountain_d2400_D4000_x30000 | 8 | 665.0 | 4.93 | 663.5 | 3.16 | -0.2% | 0.5 | 0.19 | ok |
+| pvp_mountain_d2400_D20000_x3000 | 8 | 25.25 | 0.463 | 25.25 | 0.463 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d2400_D20000_x10000 | 8 | 81.88 | 0.641 | 81.88 | 0.641 | +0.0% | 0 | 1.00 | ok |
-| pvp_mountain_d2400_D20000_x30000 | 8 | 289.8 | 2.05 | 290.4 | 2.72 | +0.2% | 0.25 | 0.93 | ok |
+| pvp_mountain_d2400_D20000_x30000 | 8 | 289.8 | 2.05 | 289.9 | 1.96 | +0.0% | 0.12 | 1 | ok |
 
 </details>
 
@@ -256,13 +256,13 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 | pvp_plains_d2400_D20000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_plains_d2400_D20000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d1200_D4000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| pvp_highland_d1200_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| pvp_highland_d1200_D4000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
+| pvp_highland_d1200_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0.0615 | -0.0% | 0.12 | 1 | ok |
+| pvp_highland_d1200_D4000_x30000 | 8 | 30,000 | 0 | 30,000 | 0.323 | -0.0% | 0.12 | 1 | ok |
 | pvp_highland_d1200_D20000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d1200_D20000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d1200_D20000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d2400_D4000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| pvp_highland_d2400_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
+| pvp_highland_d2400_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0.131 | -0.0% | 0.12 | 1 | ok |
 | pvp_highland_d2400_D4000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d2400_D20000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_highland_d2400_D20000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
@@ -274,7 +274,7 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 | pvp_mountain_d1200_D20000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d1200_D20000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d2400_D4000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| pvp_mountain_d2400_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0.175 | -0.0% | 0.12 | 1 | ok |
+| pvp_mountain_d2400_D4000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d2400_D4000_x30000 | 8 | 30,000 | 0 | 30,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d2400_D20000_x3000 | 8 | 3,000 | 0 | 3,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | pvp_mountain_d2400_D20000_x10000 | 8 | 10,000 | 0 | 10,000 | 0 | +0.0% | 0 | 1.00 | ok |
@@ -286,42 +286,42 @@ Per-metric summary over all cells (relative difference of the C mean to the TS m
 
 | cell | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| pvp_plains_d1200_D4000_x3000 | 8 | 8.50 | 0.535 | 8.38 | 0.518 | -1.5% | 0.12 | 1 | ok |
-| pvp_plains_d1200_D4000_x10000 | 8 | 13.25 | 0.463 | 13.62 | 0.744 | +2.8% | 0.25 | 0.93 | ok |
-| pvp_plains_d1200_D4000_x30000 | 8 | 34.62 | 1.69 | 35.38 | 1.92 | +2.2% | 0.25 | 0.93 | ok |
-| pvp_plains_d1200_D20000_x3000 | 8 | 12.50 | 0.535 | 12.50 | 0.535 | +0.0% | 0 | 1.00 | ok |
-| pvp_plains_d1200_D20000_x10000 | 8 | 23.62 | 0.518 | 23.62 | 0.518 | +0.0% | 0 | 1.00 | ok |
-| pvp_plains_d1200_D20000_x30000 | 8 | 34.62 | 0.744 | 33.88 | 0.835 | -2.2% | 0.38 | 0.52 | ok |
-| pvp_plains_d2400_D4000_x3000 | 8 | 8.75 | 0.463 | 8.25 | 0.463 | -5.7% | 0.5 | 0.19 | ok |
-| pvp_plains_d2400_D4000_x10000 | 8 | 14.88 | 0.354 | 14.75 | 0.463 | -0.8% | 0.12 | 1 | ok |
-| pvp_plains_d2400_D4000_x30000 | 8 | 30.88 | 0.835 | 30.62 | 1.41 | -0.8% | 0.25 | 0.93 | ok |
+| pvp_plains_d1200_D4000_x3000 | 8 | 8.50 | 0.535 | 8.50 | 0.535 | +0.0% | 0 | 1.00 | ok |
+| pvp_plains_d1200_D4000_x10000 | 8 | 13.25 | 0.463 | 14.00 | 0.535 | +5.7% | 0.62 | 0.05 | ok |
+| pvp_plains_d1200_D4000_x30000 | 8 | 34.62 | 1.69 | 35.50 | 1.60 | +2.5% | 0.38 | 0.52 | ok |
+| pvp_plains_d1200_D20000_x3000 | 8 | 12.50 | 0.535 | 12.25 | 0.463 | -2.0% | 0.25 | 0.93 | ok |
+| pvp_plains_d1200_D20000_x10000 | 8 | 23.62 | 0.518 | 23.75 | 0.463 | +0.5% | 0.12 | 1 | ok |
+| pvp_plains_d1200_D20000_x30000 | 8 | 34.62 | 0.744 | 34.38 | 1.19 | -0.7% | 0.12 | 1 | ok |
+| pvp_plains_d2400_D4000_x3000 | 8 | 8.75 | 0.463 | 8.50 | 0.535 | -2.9% | 0.25 | 0.93 | ok |
+| pvp_plains_d2400_D4000_x10000 | 8 | 14.88 | 0.354 | 14.50 | 0.535 | -2.5% | 0.38 | 0.52 | ok |
+| pvp_plains_d2400_D4000_x30000 | 8 | 30.88 | 0.835 | 30.88 | 0.641 | +0.0% | 0.12 | 1 | ok |
 | pvp_plains_d2400_D20000_x3000 | 8 | 13.62 | 0.518 | 13.62 | 0.518 | +0.0% | 0 | 1.00 | ok |
-| pvp_plains_d2400_D20000_x10000 | 8 | 26.62 | 0.744 | 27.00 | 0.535 | +1.4% | 0.38 | 0.52 | ok |
+| pvp_plains_d2400_D20000_x10000 | 8 | 26.62 | 0.744 | 26.88 | 0.354 | +0.9% | 0.38 | 0.52 | ok |
 | pvp_plains_d2400_D20000_x30000 | 8 | 42.75 | 0.886 | 42.00 | 0.756 | -1.8% | 0.25 | 0.93 | ok |
-| pvp_highland_d1200_D4000_x3000 | 8 | 8.12 | 0.354 | 8.38 | 0.518 | +3.1% | 0.25 | 0.93 | ok |
-| pvp_highland_d1200_D4000_x10000 | 8 | 13.38 | 0.518 | 13.00 | 0 | -2.8% | 0.38 | 0.52 | ok |
-| pvp_highland_d1200_D4000_x30000 | 8 | 30.50 | 1.41 | 31.00 | 1.07 | +1.6% | 0.25 | 0.93 | ok |
-| pvp_highland_d1200_D20000_x3000 | 8 | 11.88 | 0.354 | 12.00 | 0.756 | +1.1% | 0.25 | 0.93 | ok |
-| pvp_highland_d1200_D20000_x10000 | 8 | 22.88 | 0.641 | 23.00 | 0.535 | +0.5% | 0.12 | 1 | ok |
-| pvp_highland_d1200_D20000_x30000 | 8 | 32.50 | 1.51 | 33.38 | 1.06 | +2.7% | 0.38 | 0.52 | ok |
-| pvp_highland_d2400_D4000_x3000 | 8 | 8.25 | 0.463 | 8.50 | 0.535 | +3.0% | 0.25 | 0.93 | ok |
+| pvp_highland_d1200_D4000_x3000 | 8 | 8.12 | 0.354 | 8.50 | 0.535 | +4.6% | 0.38 | 0.52 | ok |
+| pvp_highland_d1200_D4000_x10000 | 8 | 13.38 | 0.518 | 13.12 | 0.354 | -1.9% | 0.25 | 0.93 | ok |
+| pvp_highland_d1200_D4000_x30000 | 8 | 30.50 | 1.41 | 31.25 | 1.39 | +2.5% | 0.38 | 0.52 | ok |
+| pvp_highland_d1200_D20000_x3000 | 8 | 11.88 | 0.354 | 12.00 | 0.535 | +1.1% | 0.12 | 1 | ok |
+| pvp_highland_d1200_D20000_x10000 | 8 | 22.88 | 0.641 | 22.50 | 0.535 | -1.6% | 0.25 | 0.93 | ok |
+| pvp_highland_d1200_D20000_x30000 | 8 | 32.50 | 1.51 | 33.12 | 1.13 | +1.9% | 0.25 | 0.93 | ok |
+| pvp_highland_d2400_D4000_x3000 | 8 | 8.25 | 0.463 | 8.12 | 0.354 | -1.5% | 0.12 | 1 | ok |
 | pvp_highland_d2400_D4000_x10000 | 8 | 14.00 | 0.756 | 14.25 | 0.463 | +1.8% | 0.25 | 0.93 | ok |
-| pvp_highland_d2400_D4000_x30000 | 8 | 26.62 | 1.06 | 26.50 | 1.77 | -0.5% | 0.12 | 1 | ok |
-| pvp_highland_d2400_D20000_x3000 | 8 | 13.25 | 0.463 | 13.12 | 0.641 | -0.9% | 0.12 | 1 | ok |
-| pvp_highland_d2400_D20000_x10000 | 8 | 25.38 | 0.518 | 26.00 | 0.535 | +2.5% | 0.5 | 0.19 | ok |
-| pvp_highland_d2400_D20000_x30000 | 8 | 39.75 | 0.886 | 40.12 | 1.81 | +0.9% | 0.25 | 0.93 | ok |
-| pvp_mountain_d1200_D4000_x3000 | 8 | 8.62 | 0.518 | 8.75 | 0.463 | +1.4% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D4000_x10000 | 8 | 13.50 | 0.535 | 13.62 | 0.518 | +0.9% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D4000_x30000 | 8 | 28.38 | 0.916 | 28.75 | 0.707 | +1.3% | 0.25 | 0.93 | ok |
-| pvp_mountain_d1200_D20000_x3000 | 8 | 11.38 | 0.518 | 11.38 | 0.518 | +0.0% | 0 | 1.00 | ok |
-| pvp_mountain_d1200_D20000_x10000 | 8 | 23.25 | 0.463 | 23.12 | 0.354 | -0.5% | 0.12 | 1 | ok |
-| pvp_mountain_d1200_D20000_x30000 | 8 | 35.25 | 0.707 | 34.75 | 0.886 | -1.4% | 0.25 | 0.93 | ok |
-| pvp_mountain_d2400_D4000_x3000 | 8 | 8.25 | 0.463 | 8.50 | 0.535 | +3.0% | 0.25 | 0.93 | ok |
-| pvp_mountain_d2400_D4000_x10000 | 8 | 14.50 | 0.535 | 13.88 | 0.641 | -4.3% | 0.38 | 0.52 | ok |
-| pvp_mountain_d2400_D4000_x30000 | 8 | 30.62 | 1.51 | 31.88 | 0.835 | +4.1% | 0.38 | 0.52 | ok |
-| pvp_mountain_d2400_D20000_x3000 | 8 | 12.88 | 0.354 | 12.75 | 0.886 | -1.0% | 0.12 | 1 | ok |
-| pvp_mountain_d2400_D20000_x10000 | 8 | 26.50 | 0.535 | 26.00 | 0.756 | -1.9% | 0.25 | 0.93 | ok |
-| pvp_mountain_d2400_D20000_x30000 | 8 | 41.25 | 1.04 | 41.00 | 1.20 | -0.6% | 0.25 | 0.93 | ok |
+| pvp_highland_d2400_D4000_x30000 | 8 | 26.62 | 1.06 | 26.50 | 1.20 | -0.5% | 0.12 | 1 | ok |
+| pvp_highland_d2400_D20000_x3000 | 8 | 13.25 | 0.463 | 13.12 | 0.354 | -0.9% | 0.12 | 1 | ok |
+| pvp_highland_d2400_D20000_x10000 | 8 | 25.38 | 0.518 | 25.88 | 0.641 | +2.0% | 0.38 | 0.52 | ok |
+| pvp_highland_d2400_D20000_x30000 | 8 | 39.75 | 0.886 | 40.75 | 0.707 | +2.5% | 0.5 | 0.19 | ok |
+| pvp_mountain_d1200_D4000_x3000 | 8 | 8.62 | 0.518 | 8.50 | 0.535 | -1.4% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D4000_x10000 | 8 | 13.50 | 0.535 | 13.38 | 0.518 | -0.9% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D4000_x30000 | 8 | 28.38 | 0.916 | 28.75 | 0.463 | +1.3% | 0.38 | 0.52 | ok |
+| pvp_mountain_d1200_D20000_x3000 | 8 | 11.38 | 0.518 | 11.50 | 0.535 | +1.1% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D20000_x10000 | 8 | 23.25 | 0.463 | 23.12 | 0.641 | -0.5% | 0.12 | 1 | ok |
+| pvp_mountain_d1200_D20000_x30000 | 8 | 35.25 | 0.707 | 34.50 | 1.07 | -2.1% | 0.25 | 0.93 | ok |
+| pvp_mountain_d2400_D4000_x3000 | 8 | 8.25 | 0.463 | 8.12 | 0.354 | -1.5% | 0.12 | 1 | ok |
+| pvp_mountain_d2400_D4000_x10000 | 8 | 14.50 | 0.535 | 14.00 | 0.535 | -3.4% | 0.38 | 0.52 | ok |
+| pvp_mountain_d2400_D4000_x30000 | 8 | 30.62 | 1.51 | 31.12 | 0.991 | +1.6% | 0.25 | 0.93 | ok |
+| pvp_mountain_d2400_D20000_x3000 | 8 | 12.88 | 0.354 | 12.75 | 0.463 | -1.0% | 0.12 | 1 | ok |
+| pvp_mountain_d2400_D20000_x10000 | 8 | 26.50 | 0.535 | 26.38 | 0.744 | -0.5% | 0.12 | 1 | ok |
+| pvp_mountain_d2400_D20000_x30000 | 8 | 41.25 | 1.04 | 41.75 | 1.16 | +1.2% | 0.25 | 0.93 | ok |
 
 </details>
 
@@ -368,8 +368,8 @@ City: a 1250-tile player (200k troops, 2M gold) builds a city at tick 0; troop c
 | struct_nocity gold @ t=900 | 8 | 2,090,000 | 0 | 2,090,000 | 0 | +0.0% | 0 | 1.00 | ok |
 | struct_nocity troops @ t=1500 | 8 | 288,906 | 0 | 288,906 | 0 | +0.0% | 0 | 1.00 | ok |
 | struct_nocity gold @ t=1500 | 8 | 2,150,000 | 0 | 2,150,000 | 0 | +0.0% | 0 | 1.00 | ok |
-| struct_nopost attacker tiles gained | 8 | 140.0 | 2.33 | 139.8 | 1.91 | -0.2% | 0.12 | 1 | ok |
-| struct_post attacker tiles gained | 8 | 31.50 | 0.535 | 31.25 | 1.28 | -0.8% | 0.25 | 0.93 | ok |
+| struct_nopost attacker tiles gained | 8 | 140.0 | 2.33 | 139.2 | 2.12 | -0.5% | 0.25 | 0.93 | ok |
+| struct_post attacker tiles gained | 8 | 31.50 | 0.535 | 31.12 | 0.641 | -1.2% | 0.25 | 0.93 | ok |
 
 ## 5. Enclave annexation
 
@@ -413,57 +413,57 @@ Players per game: TS 132, C 132.
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| tribe tiles total @ t=0 | 6 | 3,112 | 8.98 | 3,120 | 0 | +0.2% | 0.67 | 0.077 | ok |
+| tribe tiles total @ t=0 | 6 | 3,112 | 8.98 | 3,117 | 3.95 | +0.1% | 0.33 | 0.81 | ok |
 | tribe alive @ t=0 | 6 | 60.00 | 0 | 60.00 | 0 | +0.0% | 0 | 1.00 | ok |
-| tribe mean tiles/alive @ t=0 | 6 | 51.87 | 0.15 | 52.00 | 0 | +0.2% | 0.67 | 0.077 | ok |
-| tribe tiles total @ t=600 | 6 | 14,956 | 4,304 | 16,093 | 4,222 | +7.6% | 0.33 | 0.81 | ok |
-| tribe alive @ t=600 | 6 | 12.50 | 4.85 | 14.50 | 2.59 | +16.0% | 0.5 | 0.32 | ok |
-| tribe mean tiles/alive @ t=600 | 6 | 1,252 | 215.4 | 1,100 | 135.9 | -12.1% | 0.5 | 0.32 | ok |
-| tribe tiles total @ t=1200 | 6 | 1,248 | 1,658 | 485.2 | 583.9 | -61.1% | 0.33 | 0.81 | ok |
-| tribe alive @ t=1200 | 6 | 1.17 | 1.17 | 1.17 | 0.753 | +0.0% | 0.17 | 1 | ok |
-| tribe mean tiles/alive @ t=1200 | 6 | 653.4 | 773.5 | 426.1 | 594.5 | -34.8% | 0.33 | 0.81 | ok |
-| tribe tiles total @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
-| tribe alive @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
-| tribe mean tiles/alive @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
+| tribe mean tiles/alive @ t=0 | 6 | 51.87 | 0.15 | 51.95 | 0.0658 | +0.1% | 0.33 | 0.81 | ok |
+| tribe tiles total @ t=600 | 6 | 14,956 | 4,304 | 15,319 | 3,022 | +2.4% | 0.33 | 0.81 | ok |
+| tribe alive @ t=600 | 6 | 12.50 | 4.85 | 11.67 | 1.63 | -6.7% | 0.33 | 0.81 | ok |
+| tribe mean tiles/alive @ t=600 | 6 | 1,252 | 215.4 | 1,312 | 194.2 | +4.8% | 0.5 | 0.32 | ok |
+| tribe tiles total @ t=1200 | 6 | 1,248 | 1,658 | 1,222 | 1,610 | -2.1% | 0.17 | 1 | ok |
+| tribe alive @ t=1200 | 6 | 1.17 | 1.17 | 1.50 | 1.76 | +28.6% | 0.17 | 1 | ok |
+| tribe mean tiles/alive @ t=1200 | 6 | 653.4 | 773.5 | 381.3 | 449.3 | -41.6% | 0.17 | 1 | ok |
+| tribe tiles total @ t=2400 | 6 | 0 | 0 | 112.8 | 276.4 | +11283333333333.3% | 0.17 | 1 | ok |
+| tribe alive @ t=2400 | 6 | 0 | 0 | 0.167 | 0.408 | +16666666666.7% | 0.17 | 1 | ok |
+| tribe mean tiles/alive @ t=2400 | 6 | 0 | 0 | 112.8 | 276.4 | +11283333333333.3% | 0.17 | 1 | ok |
 | tribe tiles total @ t=4000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe alive @ t=4000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe mean tiles/alive @ t=4000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe tiles total @ t=6000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe alive @ t=6000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe mean tiles/alive @ t=6000 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
-| nation tiles total @ t=0 | 6 | 3,396 | 58.06 | 3,355 | 31.08 | -1.2% | 0.67 | 0.077 | ok |
+| nation tiles total @ t=0 | 6 | 3,396 | 58.06 | 3,354 | 29.96 | -1.2% | 0.67 | 0.077 | ok |
 | nation alive @ t=0 | 6 | 72.00 | 0 | 72.00 | 0 | +0.0% | 0 | 1.00 | ok |
-| nation mean tiles/alive @ t=0 | 6 | 47.16 | 0.806 | 46.59 | 0.432 | -1.2% | 0.67 | 0.077 | ok |
-| nation tiles total @ t=600 | 6 | 140,414 | 4,316 | 139,171 | 3,860 | -0.9% | 0.17 | 1 | ok |
-| nation alive @ t=600 | 6 | 62.17 | 3.82 | 62.67 | 0.516 | +0.8% | 0.67 | 0.077 | ok |
-| nation mean tiles/alive @ t=600 | 6 | 2,264 | 107.9 | 2,221 | 76.43 | -1.9% | 0.33 | 0.81 | ok |
-| nation tiles total @ t=1200 | 6 | 155,913 | 1,797 | 156,324 | 522.1 | +0.3% | 0.5 | 0.32 | ok |
-| nation alive @ t=1200 | 6 | 44.00 | 2.90 | 46.33 | 2.73 | +5.3% | 0.33 | 0.81 | ok |
-| nation mean tiles/alive @ t=1200 | 6 | 3,556 | 229.7 | 3,384 | 208.3 | -4.8% | 0.5 | 0.32 | ok |
-| nation tiles total @ t=2400 | 6 | 157,654 | 651.3 | 157,629 | 101.4 | -0.0% | 0.83 | 0.012 | ok |
-| nation alive @ t=2400 | 6 | 31.33 | 3.39 | 29.17 | 3.13 | -6.9% | 0.67 | 0.077 | ok |
-| nation mean tiles/alive @ t=2400 | 6 | 5,081 | 556.6 | 5,452 | 532.5 | +7.3% | 0.67 | 0.077 | ok |
-| nation tiles total @ t=4000 | 6 | 157,472 | 944.0 | 157,589 | 313.7 | +0.1% | 0.67 | 0.077 | ok |
-| nation alive @ t=4000 | 6 | 20.50 | 1.97 | 19.33 | 3.01 | -5.7% | 0.5 | 0.32 | ok |
-| nation mean tiles/alive @ t=4000 | 6 | 7,740 | 731.7 | 8,317 | 1,277 | +7.4% | 0.5 | 0.32 | ok |
-| nation tiles total @ t=6000 | 6 | 158,029 | 29.99 | 155,728 | 3,004 | -1.5% | 1.00 | 0.0013 | ok |
-| nation alive @ t=6000 | 6 | 12.50 | 1.87 | 13.50 | 2.26 | +8.0% | 0.33 | 0.81 | ok |
-| nation mean tiles/alive @ t=6000 | 6 | 12,886 | 1,968 | 11,846 | 2,268 | -8.1% | 0.5 | 0.32 | ok |
+| nation mean tiles/alive @ t=0 | 6 | 47.16 | 0.806 | 46.58 | 0.416 | -1.2% | 0.67 | 0.077 | ok |
+| nation tiles total @ t=600 | 6 | 140,414 | 4,316 | 139,898 | 2,883 | -0.4% | 0.5 | 0.32 | ok |
+| nation alive @ t=600 | 6 | 62.17 | 3.82 | 62.33 | 2.66 | +0.3% | 0.33 | 0.81 | ok |
+| nation mean tiles/alive @ t=600 | 6 | 2,264 | 107.9 | 2,248 | 120.7 | -0.7% | 0.33 | 0.81 | ok |
+| nation tiles total @ t=1200 | 6 | 155,913 | 1,797 | 155,643 | 1,612 | -0.2% | 0.33 | 0.81 | ok |
+| nation alive @ t=1200 | 6 | 44.00 | 2.90 | 45.83 | 2.79 | +4.2% | 0.5 | 0.32 | ok |
+| nation mean tiles/alive @ t=1200 | 6 | 3,556 | 229.7 | 3,406 | 213.1 | -4.2% | 0.5 | 0.32 | ok |
+| nation tiles total @ t=2400 | 6 | 157,654 | 651.3 | 157,499 | 277.6 | -0.1% | 0.83 | 0.012 | ok |
+| nation alive @ t=2400 | 6 | 31.33 | 3.39 | 33.67 | 3.20 | +7.4% | 0.5 | 0.32 | ok |
+| nation mean tiles/alive @ t=2400 | 6 | 5,081 | 556.6 | 4,716 | 482.9 | -7.2% | 0.5 | 0.32 | ok |
+| nation tiles total @ t=4000 | 6 | 157,472 | 944.0 | 157,780 | 66.84 | +0.2% | 0.67 | 0.077 | ok |
+| nation alive @ t=4000 | 6 | 20.50 | 1.97 | 22.17 | 3.60 | +8.1% | 0.33 | 0.81 | ok |
+| nation mean tiles/alive @ t=4000 | 6 | 7,740 | 731.7 | 7,264 | 1,083 | -6.2% | 0.5 | 0.32 | ok |
+| nation tiles total @ t=6000 | 6 | 158,029 | 29.99 | 155,793 | 2,767 | -1.4% | 1.00 | 0.0013 | ok |
+| nation alive @ t=6000 | 6 | 12.50 | 1.87 | 14.67 | 4.63 | +17.3% | 0.33 | 0.81 | ok |
+| nation mean tiles/alive @ t=6000 | 6 | 12,886 | 1,968 | 11,455 | 3,257 | -11.1% | 0.5 | 0.32 | ok |
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
 | tribe tiles per alive player @ t=6000 (pooled) | 0 | - | - | - | - | - | - | - | n/a |
-| nation tiles per alive player @ t=6000 (pooled) | 75 | 12,642 | 20,152 | 11,535 | 15,834 | -8.8% | 0.21 | 0.048 | ok |
+| nation tiles per alive player @ t=6000 (pooled) | 75 | 12,642 | 20,152 | 10,622 | 14,551 | -16.0% | 0.16 | 0.21 | ok |
 
 Leader's share of all land (game-length proxy; the win bar is 80%):
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| leader land share @ t=600 | 6 | 0.0386 | 0.00525 | 0.0387 | 0.00494 | +0.3% | 0.33 | 0.81 | ok |
-| leader land share @ t=1200 | 6 | 0.0747 | 0.00657 | 0.0661 | 0.00761 | -11.6% | 0.67 | 0.077 | ok |
-| leader land share @ t=2400 | 6 | 0.114 | 0.0209 | 0.104 | 0.00619 | -8.8% | 0.33 | 0.81 | ok |
-| leader land share @ t=4000 | 6 | 0.251 | 0.0755 | 0.226 | 0.0815 | -9.9% | 0.33 | 0.81 | ok |
-| leader land share @ t=6000 | 6 | 0.412 | 0.132 | 0.33 | 0.139 | -19.9% | 0.5 | 0.32 | ok |
+| leader land share @ t=600 | 6 | 0.0386 | 0.00525 | 0.0364 | 0.00186 | -5.6% | 0.5 | 0.32 | ok |
+| leader land share @ t=1200 | 6 | 0.0747 | 0.00657 | 0.0716 | 0.0102 | -4.2% | 0.67 | 0.077 | ok |
+| leader land share @ t=2400 | 6 | 0.114 | 0.0209 | 0.113 | 0.0348 | -1.0% | 0.33 | 0.81 | ok |
+| leader land share @ t=4000 | 6 | 0.251 | 0.0755 | 0.178 | 0.0347 | -29.0% | 0.67 | 0.077 | ok |
+| leader land share @ t=6000 | 6 | 0.412 | 0.132 | 0.332 | 0.096 | -19.4% | 0.5 | 0.32 | ok |
 
 Games ended by a winner within 6000 ticks: TS 0/6, C 0/6.
 
@@ -475,21 +475,21 @@ A human owning a coastal disc sends one transport (default 1/5 of troops) to a c
 
 | scenario | distance | TS landings | TS ticks | C landings | C ticks |
 |---|---|---|---|---|---|
-| boat_d25_0 | 25.30 | 2 | 33.00 | 2 | 36.00 |
+| boat_d25_0 | 25.30 | 2 | 33.00 | 2 | 33.00 |
 | boat_d25_1 | 24.60 | 2 | 33.00 | 2 | 33.00 |
-| boat_d50_0 | 50.33 | 2 | 70.00 | 2 | 65.00 |
-| boat_d50_1 | 50.29 | 2 | 107.0 | 2 | 74.00 |
-| boat_d100_0 | 100.1 | 2 | 155.0 | 2 | 160.0 |
-| boat_d100_1 | 99.72 | 2 | 187.0 | 2 | 185.0 |
+| boat_d50_0 | 50.33 | 2 | 70.00 | 2 | 70.00 |
+| boat_d50_1 | 50.29 | 2 | 107.0 | 2 | 107.0 |
+| boat_d100_0 | 100.1 | 2 | 155.0 | 2 | 155.0 |
+| boat_d100_1 | 99.72 | 2 | 187.0 | 2 | 187.0 |
 | boat_d200_0 | 200.0 | 2 | 317.0 | 2 | 317.0 |
-| boat_d200_1 | 199.6 | 2 | 371.0 | 2 | 414.0 |
+| boat_d200_1 | 199.6 | 2 | 371.0 | 2 | 371.0 |
 | boat_d350_0 | 349.8 | 0 | - | 0 | - |
-| boat_d350_1 | 349.9 | 2 | 697.0 | 2 | 696.0 |
+| boat_d350_1 | 349.9 | 2 | 697.0 | 2 | 697.0 |
 
 TS: travel ticks ≈ 1.87 × straight-line distance (through-origin fit over 9 routes).
 
-C: travel ticks ≈ 1.91 × straight-line distance.
+C: travel ticks ≈ 1.87 × straight-line distance.
 
-Per-route C/TS travel-time ratio over 9 routes: mean 0.983, min 0.692, max 1.116.
+Per-route C/TS travel-time ratio over 9 routes: mean 1.000, min 1.000, max 1.000.
 
 ![boats](img/boats.png)

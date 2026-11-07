@@ -1,12 +1,12 @@
 /*
- * test_ships.c - water bodies, routing, transport ships, trade ships,
- * warships and shells. Synthetic two-island map; the World map (when
+ * test_ships.c - water bodies, routing (pathfind_ts.c), transport ships,
+ * trade ships, warships and shells. Synthetic two-island map; the World map (when
  * OFE_MAPS_DIR is set) is used to report boat travel times and the cost of
  * a ship-heavy game.
  */
 #include <time.h>
 
-#include "../../engine/src/pathfind.h"
+#include "../../engine/src/pathfind_ts.h"
 #include "test_util.h"
 
 #define W 200
@@ -82,57 +82,92 @@ static void boat_intent(OfeGame *g, int player, TileRef tile, double troops) {
     ofe_game_push_intents(g, &in, 1);
 }
 
-/* A route is valid if it starts and ends at the given tiles, moves one
- * tile at a time, and crosses only water between its (shore) ends. */
+/* A route is valid if it starts and ends at the given tiles and moves one
+ * tile at a time. Like OpenFront's, it is planned on the mini map, so on a
+ * real map it may clip a land corner; route_dry also requires water between
+ * the (shore) ends, which holds on the synthetic maps (blocky coastlines). */
 static bool route_ok(const OfeMap *m, const IntVec *p, TileRef from, TileRef to) {
     if (p->len < 1 || p->data[0] != from || p->data[p->len - 1] != to) return false;
-    for (int32_t i = 0; i < p->len; i++) {
-        if (i > 0 && i < p->len - 1 && map_is_land(m, p->data[i])) return false;
-        if (i > 0) {
-            int dx = abs(map_x(m, p->data[i]) - map_x(m, p->data[i - 1]));
-            int dy = abs(map_y(m, p->data[i]) - map_y(m, p->data[i - 1]));
-            if (dx > 1 || dy > 1) return false;
-        }
+    for (int32_t i = 1; i < p->len; i++) {
+        int dx = abs(map_x(m, p->data[i]) - map_x(m, p->data[i - 1]));
+        int dy = abs(map_y(m, p->data[i]) - map_y(m, p->data[i - 1]));
+        if (dx > 1 || dy > 1) return false;
     }
     return true;
+}
+
+static bool route_dry(const OfeMap *m, const IntVec *p, TileRef from, TileRef to) {
+    if (!route_ok(m, p, from, to)) return false;
+    for (int32_t i = 1; i + 1 < p->len; i++) {
+        if (map_is_land(m, p->data[i])) return false;
+    }
+    return true;
+}
+
+/* Number of tiles of the route from a to b (0 if none). */
+static int32_t path_len_of(const TsWater *w, TileRef a, TileRef b) {
+    IntVec p = {0};
+    int32_t n = ts_water_find_path(w, &a, 1, b, &p) ? p.len : 0;
+    IntVec_free(&p);
+    return n;
 }
 
 /* ---- Tests -------------------------------------------------------------------- */
 
 static void test_components_and_routes(OfeMap *m) {
-    const WaterGraph *wg = water_graph(m);
-    int32_t ocean = water_tile_component(wg, m, map_ref(m, 100, 50));
-    int32_t lake = water_tile_component(wg, m, map_ref(m, 40, 50));
-    CHECK(ocean >= 0 && lake >= 0 && ocean != lake);
-    CHECK(water_graph_num_components(wg) == 2);
-    CHECK(water_tile_component(wg, m, map_ref(m, 30, 30)) == -1); /* inland */
-    CHECK(water_tile_component(wg, m, map_ref(m, 69, 50)) == ocean); /* shore */
-    CHECK(water_tile_component(wg, m, map_ref(m, 40, 44)) == lake); /* lake shore */
-    CHECK(water_tile_component(wg, m, map_ref(m, 0, 0)) == ocean);
+    const TsWater *w = ts_water(m);
+    int32_t ocean = ts_water_component(w, map_ref(m, 100, 50));
+    int32_t lake = ts_water_component(w, map_ref(m, 40, 50));
+    CHECK(ocean > 0 && lake > 0 && ocean != lake);
+    CHECK(ts_water_num_components(w) >= 2);
+    CHECK(ts_water_component(w, map_ref(m, 30, 30)) == -1); /* inland */
+    CHECK(ts_water_component(w, map_ref(m, 69, 50)) == ocean); /* shore */
+    CHECK(ts_water_component(w, map_ref(m, 40, 44)) == lake); /* lake shore */
+    CHECK(ts_water_component(w, map_ref(m, 0, 0)) == ocean);
+    CHECK(ts_water_has_component(w, map_ref(m, 69, 50), ocean));
+    CHECK(!ts_water_has_component(w, map_ref(m, 69, 50), lake));
+    CHECK(ts_water_component(w, -1) == -1);
 
     IntVec path = {0};
     TileRef a = map_ref(m, 69, 50), b = map_ref(m, 130, 50);
-    CHECK(water_find_path(wg, m, &a, 1, b, &path) == 0);
-    CHECK(route_ok(m, &path, a, b));
-    CHECK(path.len >= 62 && path.len <= 70); /* a straight crossing */
+    CHECK(ts_water_find_path(w, &a, 1, b, &path));
+    CHECK(route_dry(m, &path, a, b));
+    CHECK(path.len >= 62 && path.len <= 90); /* a crossing, roughly straight */
     IntVec again = {0};
-    CHECK(water_find_path(wg, m, &a, 1, b, &again) == 0); /* from the memo */
+    CHECK(ts_water_find_path(w, &a, 1, b, &again)); /* from the memo */
     CHECK(again.len == path.len && memcmp(again.data, path.data, (size_t)path.len * 4) == 0);
 
     /* Around the island: from the north shore to the south shore. */
     TileRef n = map_ref(m, 30, 20), s = map_ref(m, 30, 79);
-    CHECK(water_find_path(wg, m, &n, 1, s, &path) == 0);
-    CHECK(route_ok(m, &path, n, s));
+    CHECK(ts_water_find_path(w, &n, 1, s, &path));
+    CHECK(route_dry(m, &path, n, s));
     CHECK(path.len > 100);
 
     /* A lake shore can't reach the ocean. */
     TileRef lk = map_ref(m, 40, 44);
-    CHECK(water_find_path(wg, m, &lk, 1, b, &path) < 0);
+    CHECK(!ts_water_find_path(w, &lk, 1, b, &path));
 
-    /* Several sources: the nearer one wins. */
+    /* Several sources: the route starts at one of them. */
     TileRef srcs[3] = {map_ref(m, 30, 20), map_ref(m, 69, 60), map_ref(m, 12, 79)};
-    CHECK(water_find_path(wg, m, srcs, 3, b, &path) == 1);
-    CHECK(route_ok(m, &path, srcs[1], b));
+    CHECK(ts_water_find_path(w, srcs, 3, b, &path));
+    CHECK(path.len > 0 && (path.data[0] == srcs[0] || path.data[0] == srcs[1] || path.data[0] == srcs[2]));
+    CHECK(route_dry(m, &path, path.data[0], b));
+
+    /* A stepper walks the same route one tile per call and then says it arrived. */
+    TsWaterStepper st = {0};
+    TileRef cur = a, node = -1;
+    int steps = 0;
+    TsPathStatus r;
+    while ((r = ts_water_next(w, &st, cur, b, 0, &node)) == TS_PATH_NEXT && steps < 500) {
+        cur = node;
+        steps++;
+    }
+    CHECK(r == TS_PATH_COMPLETE && cur == b && steps == path_len_of(w, a, b) - 1);
+    TsWaterStepper copy = {0};
+    ts_water_stepper_copy(&copy, &st);
+    CHECK(copy.path.len == st.path.len && copy.path.data != st.path.data);
+    ts_water_stepper_free(&copy);
+    ts_water_stepper_free(&st);
 
     OfeGame *g = two_player_game(m, 1);
     CHECK(ships_water_component(g, map_ref(m, 100, 50)) == ocean);
@@ -158,9 +193,11 @@ static void test_boat_attack(OfeMap *m) {
         /* Launched at the end of the tick, after this tick's growth. */
         CHECK(g->units.troops[b] > 15000 && g->units.troops[b] <= (troops_before + 2000) / 5);
         CHECK(g->players.troops[1] < troops_before - 15000 + 2000); /* taken at launch (growth is small) */
-        CHECK(g->units.path[b].len >= 62 && g->units.path[b].len <= 80);
+        CHECK(tile_owner(g, g->units.src_tile[b]) == 1 && map_is_shore(m, g->units.src_tile[b]));
+        CHECK(tile_owner(g, g->units.target_tile[b]) == 2 && map_is_shore(m, g->units.target_tile[b]));
     }
-    int32_t path_len = b >= 0 ? g->units.path[b].len : 0;
+    int32_t path_len = b >= 0 ? path_len_of(ts_water(m), g->units.src_tile[b], g->units.target_tile[b]) : 0;
+    CHECK(path_len >= 62 && path_len <= 100);
     int ticks = 1;
     while (count_units(g, OFE_UNIT_TRANSPORT_SHIP) > 0 && ticks < 300) {
         ofe_game_step(g, 1);
@@ -205,18 +242,16 @@ static void test_boat_limit_and_cancel(OfeMap *m) {
     ofe_game_push_intents(g, &cancel, 1);
     int64_t troops_at_cancel = g->players.troops[1];
     ofe_game_step(g, 2); /* the order lands, then the ship plans its way home */
-    /* It heads for the own shore nearest to where it is, not back to where it left. */
+    /* It heads for an own shore reachable by water from where it is, not back to where it left. */
     {
         int32_t sl = unit_lookup(g, id);
         CHECK(sl >= 0);
         if (sl >= 0) {
             TileRef home = g->units.target_tile[sl], here = g->units.tile[sl];
             CHECK(tile_owner(g, home) == 1 && map_is_shore(m, home));
-            const IntVec *bd = &g->players.border[1];
-            for (int32_t i = 0; i < bd->len; i++) {
-                if (map_is_shore(m, bd->data[i]) && water_tile_component(water_graph(m), m, bd->data[i]) == water_tile_component(water_graph(m), m, here))
-                    CHECK(map_manhattan(m, bd->data[i], here) >= map_manhattan(m, home, here));
-            }
+            const TsWater *w = ts_water(m);
+            CHECK(ts_water_component(w, home) == ts_water_component(w, here));
+            CHECK(path_len_of(w, here, home) > 0); /* reachable by water */
         }
     }
     int guard = 0;
@@ -394,19 +429,18 @@ static double now(void) {
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
-/* The Bering Strait is two tiles wide on the compact world map: the routing
- * grids cut it, and a trip from the Arctic coast to the Pacific one went all
- * the way round the Atlantic (1250 steps; OpenFront's boat needs about 700). */
+/* The Bering Strait is two tiles wide on the compact world map: a trip from
+ * the Arctic coast to the Pacific one goes through it (about 700 steps)
+ * instead of all the way round the Atlantic (1250). */
 static void test_strait_detour(void) {
     const char *dir = getenv("OFE_MAPS_DIR");
     if (!dir || !*dir) return;
     char path[1024];
     snprintf(path, sizeof(path), "%s/world", dir);
     OfeMap *m = ofe_map_load(path, 1);
-    const WaterGraph *wg = water_graph(m);
     TileRef a = map_ref(m, 803, 33), b = map_ref(m, 873, 374);
     IntVec route = {0};
-    CHECK(water_find_path(wg, m, &a, 1, b, &route) == 0);
+    CHECK(ts_water_find_path(ts_water(m), &a, 1, b, &route));
     CHECK(route_ok(m, &route, a, b));
     CHECK(route.len > 600 && route.len < 800);
     IntVec_free(&route);
@@ -419,15 +453,15 @@ static void test_world(void) {
         printf("skip world-map ship tests (set OFE_MAPS_DIR)\n");
         return;
     }
-    const WaterGraph *wg = water_graph(m);
-    printf("world: %d water bodies\n", water_graph_num_components(wg));
+    const TsWater *wg = ts_water(m);
+    printf("world: %d water bodies\n", ts_water_num_components(wg));
 
     /* Route length versus the straight Chebyshev distance for random shore pairs. */
     uint64_t rs = 12345;
     IntVec shores = {0}, path = {0};
-    int32_t ocean = water_tile_component(wg, m, map_ref(m, 1000, 10));
+    int32_t ocean = ts_water_component(wg, map_ref(m, 1000, 10));
     for (TileRef t = 0; t < m->num_tiles; t++) {
-        if (map_is_shore(m, t) && water_tile_component(wg, m, t) == ocean) IntVec_push(&shores, t);
+        if (map_is_shore(m, t) && ts_water_component(wg, t) == ocean) IntVec_push(&shores, t);
     }
     int found = 0, failed = 0, invalid = 0;
     double sum_ratio = 0, max_ratio = 0, total_s = 0;
@@ -438,9 +472,9 @@ static void test_world(void) {
         int cheb = OFE_MAX(abs(map_x(m, a) - map_x(m, b)), abs(map_y(m, a) - map_y(m, b)));
         if (cheb < 20) continue;
         double t0 = now();
-        int r = water_find_path(wg, m, &a, 1, b, &path);
+        bool ok = ts_water_find_path(wg, &a, 1, b, &path);
         total_s += now() - t0;
-        if (r < 0) {
+        if (!ok) {
             failed++;
             continue;
         }
@@ -485,7 +519,7 @@ static void test_world(void) {
             if (id < 0) continue;
             launched++;
             int32_t s = unit_lookup(g, id);
-            int32_t len = g->units.path[s].len;
+            int32_t len = path_len_of(wg, g->units.src_tile[s], g->units.target_tile[s]);
             int64_t t0 = g->tick;
             int guard = 0;
             while (unit_lookup(g, id) >= 0 && guard++ < 6000) ofe_game_step(g, 1);
@@ -511,7 +545,7 @@ static void test_world(void) {
         const IntVec *bd = &h->players.border[p];
         for (int tries = 0; tries < 60 && bd->len > 0; tries++) {
             TileRef t = bd->data[rng_int(&rs, 0, bd->len)];
-            if (map_is_shore(m, t) && water_tile_component(wg, m, t) == ocean) {
+            if (map_is_shore(m, t) && ts_water_component(wg, t) == ocean) {
                 ofe_edit_add_unit(h, OFE_UNIT_PORT, p, t, 1);
                 ports++;
                 if (ports % 7 == 0) {

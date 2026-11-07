@@ -280,7 +280,8 @@ OfeMap *ofe_map_load(const char *map_dir, int compact);
 
 /* Builds a map from a raw terrain buffer in OpenFront's byte format
  * (bit 7 land, bit 6 shoreline, bit 5 ocean, bits 0-4 magnitude). The
- * half-resolution pathfinding map is derived. The buffer is copied. */
+ * mini (half-resolution) pathfinding map is derived by 2x2 reduction, so
+ * ship routes differ slightly from OpenFront's. The buffer is copied. */
 OfeMap *ofe_map_from_terrain(int32_t width, int32_t height, const uint8_t *terrain);
 
 /* Adds a nation spawn point (maps from ofe_map_load already have theirs). */

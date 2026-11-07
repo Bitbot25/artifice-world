@@ -14,7 +14,7 @@
  *     lives in per-row vectors next to the table.
  *
  * Module map (one .c file per subsystem):
- *   map.c       map loading, terrain helpers, the half-res pathfinding map
+ *   map.c       map loading, terrain helpers, the mini (half-res) pathfinding map
  *   tiles.c     copy-on-write tile store, conquer/relinquish, borders
  *   game.c      create/destroy/clone, the tick loop, queries
  *   player.c    troop/gold growth, alliances, relations, embargoes, donations
@@ -26,7 +26,7 @@
  *   events.c    event log
  *   edit.c      state-edit API
  *   units.c     unit table, structures, construction, capture  (subsystem)
- *   ships.c     water pathfinding, transport/trade ships, warships (subsystem)
+ *   ships.c     transport/trade ships, warships (subsystem); routes: pathfind_ts.c
  *   nukes.c     atom/hydrogen bombs, MIRVs, SAMs               (subsystem)
  *   rail.c      factories, railroads, trains                    (subsystem)
  *   doomsday.c  doomsday clock                                  (subsystem)
@@ -299,6 +299,8 @@ typedef struct AttackTable {
 #define UNIT_SLOT_BITS 20
 #define UNIT_SLOT_MASK ((1 << UNIT_SLOT_BITS) - 1)
 
+#include "pathfind_ts.h" /* TsWaterStepper, held per unit */
+
 #define UNIT_COLUMNS(X)                                                             \
     X(uint8_t, alive)                                                               \
     X(uint8_t, type) /* OfeUnitType */                                              \
@@ -326,6 +328,7 @@ typedef struct UnitTable {
     int32_t count, cap; /* count = high-water mark of used slots */
     UNIT_COLUMNS(DECLARE_COLUMN)
     IntVec *path; /* per-unit path (tiles), may be empty */
+    TsWaterStepper *pf; /* per-ship route state (OpenFront's WaterPathFinder); plain data, deep-copied */
     IntVec free_slots;
     int32_t num_alive;
 } UnitTable;
@@ -396,7 +399,12 @@ struct OfeGame {
     AllianceVec alliances;
     AllianceRequestVec alliance_requests; /* pending */
     AllianceRequestVec past_requests; /* recent, for the request cooldown */
-    EmbargoVec embargoes; /* (from, to) pairs; small */
+    EmbargoVec embargoes; /* (from, to) pairs, in creation order */
+    /* Lookup cache over embargoes: bit `to` of row `from` is set iff (from, to)
+     * is in the list. Attacks create temporary embargoes, so the list gets
+     * long and trade/AI checks would otherwise scan it. */
+    uint64_t *embargo_bits;
+    int32_t embargo_rows, embargo_words; /* rows x 64-bit words per row */
     DonationVec donations; /* recent donations (cooldown per recipient) */
 
     /* Nation relations: relation[row * players.cap + other], in [-100, 100]. */
@@ -466,7 +474,8 @@ void player_add_gold(OfeGame *g, PlayerId p, int64_t gold);
 int64_t player_remove_gold(OfeGame *g, PlayerId p, int64_t gold);
 double player_relation(const OfeGame *g, PlayerId self, PlayerId other);
 void player_update_relation(OfeGame *g, PlayerId self, PlayerId other, double delta);
-bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to); /* from embargoes to */
+bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to); /* from embargoes to; O(1) */
+void embargo_bits_copy(OfeGame *dst, const OfeGame *src);
 bool player_can_trade(const OfeGame *g, PlayerId a, PlayerId b);
 void player_add_embargo(OfeGame *g, PlayerId from, PlayerId to, bool temporary);
 void player_stop_embargo(OfeGame *g, PlayerId from, PlayerId to);

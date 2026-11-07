@@ -180,18 +180,49 @@ static int32_t embargo_find(const OfeGame *g, PlayerId from, PlayerId to) {
     return -1;
 }
 
-bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to) { return embargo_find(g, from, to) >= 0; }
+static void embargo_bit_set(OfeGame *g, PlayerId from, PlayerId to, bool on) {
+    if (from >= g->embargo_rows || to >= g->embargo_words * 64) {
+        /* Grow to the player table and rebuild from the list. */
+        int32_t n = OFE_MAX(g->players.cap, OFE_MAX(from, to) + 1);
+        free(g->embargo_bits);
+        g->embargo_rows = n;
+        g->embargo_words = (n + 63) / 64;
+        g->embargo_bits = (uint64_t *)ofe_xcalloc((size_t)n * g->embargo_words, sizeof(uint64_t));
+        for (int32_t i = 0; i < g->embargoes.len; i++) {
+            const Embargo *e = &g->embargoes.data[i];
+            g->embargo_bits[(size_t)e->from * g->embargo_words + e->to / 64] |= 1ull << (e->to % 64);
+        }
+    }
+    uint64_t *w = &g->embargo_bits[(size_t)from * g->embargo_words + to / 64];
+    if (on) *w |= 1ull << (to % 64);
+    else *w &= ~(1ull << (to % 64));
+}
+
+void embargo_bits_copy(OfeGame *dst, const OfeGame *src) {
+    size_t n = (size_t)src->embargo_rows * src->embargo_words;
+    if ((size_t)dst->embargo_rows * dst->embargo_words != n) {
+        free(dst->embargo_bits);
+        dst->embargo_bits = n ? (uint64_t *)ofe_xcalloc(n, sizeof(uint64_t)) : NULL;
+    }
+    if (n) memcpy(dst->embargo_bits, src->embargo_bits, n * sizeof(uint64_t));
+    dst->embargo_rows = src->embargo_rows;
+    dst->embargo_words = src->embargo_words;
+}
+
+bool player_embargoed(const OfeGame *g, PlayerId from, PlayerId to) {
+    if (from < 0 || to < 0 || from >= g->embargo_rows || to >= g->embargo_words * 64) return false;
+    return (g->embargo_bits[(size_t)from * g->embargo_words + to / 64] >> (to % 64)) & 1;
+}
 
 bool player_can_trade(const OfeGame *g, PlayerId a, PlayerId b) {
     return a != b && !player_embargoed(g, a, b) && !player_embargoed(g, b, a);
 }
 
 void player_add_embargo(OfeGame *g, PlayerId from, PlayerId to, bool temporary) {
-    int32_t i = embargo_find(g, from, to);
-    if (i >= 0) {
+    if (player_embargoed(g, from, to)) {
         /* A permanent embargo stays permanent; a temporary one starts over
          * (TS overwrites the entry, createdAt included). */
-        Embargo *e = &g->embargoes.data[i];
+        Embargo *e = &g->embargoes.data[embargo_find(g, from, to)];
         if (e->temporary) {
             e->temporary = (uint8_t)temporary;
             e->created_tick = g->tick;
@@ -200,13 +231,15 @@ void player_add_embargo(OfeGame *g, PlayerId from, PlayerId to, bool temporary) 
     }
     Embargo e = {from, to, g->tick, (uint8_t)temporary};
     EmbargoVec_push(&g->embargoes, e);
+    embargo_bit_set(g, from, to, true);
     event_emit(g, OFE_EV_EMBARGO, 0, from, to, 1, 0);
 }
 
 void player_stop_embargo(OfeGame *g, PlayerId from, PlayerId to) {
+    if (!player_embargoed(g, from, to)) return;
     int32_t i = embargo_find(g, from, to);
-    if (i < 0) return;
     g->embargoes.data[i] = g->embargoes.data[--g->embargoes.len];
+    embargo_bit_set(g, from, to, false);
     event_emit(g, OFE_EV_EMBARGO, 0, from, to, 0, 0);
 }
 
