@@ -211,6 +211,18 @@ static inline double det_pow(double x, double y) {
     return det_exp(y * det_log(x));
 }
 
+/* exp / log / pow of the engine's formulas: OpenFront's DetMath in the parity
+ * build (bit-exact), libm in the default build (faster, ~1e-8 apart). */
+#if OFE_TS_PARITY
+#define ofe_exp det_exp
+#define ofe_log det_log
+#define ofe_pow det_pow
+#else
+#define ofe_exp exp
+#define ofe_log log
+#define ofe_pow pow
+#endif
+
 /* ---- Tile min-heap (priority float, tile int32) ------------------------- */
 typedef struct TileHeap {
     float *pri;
@@ -382,7 +394,7 @@ static inline void intset_copy(IntSet *dst, const IntSet *src) {
 
 /* ---- Math ---------------------------------------------------------------- */
 static inline double sigmoid(double value, double decay_rate, double midpoint) {
-    return 1.0 / (1.0 + exp(-decay_rate * (value - midpoint)));
+    return 1.0 / (1.0 + ofe_exp(-decay_rate * (value - midpoint)));
 }
 
 static inline uint64_t hash_mix(uint64_t h, uint64_t x) {

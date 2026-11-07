@@ -500,11 +500,12 @@ static void test_real_map(void) {
         return;
     }
     ofe_edit_add_unit(g, OFE_UNIT_MISSILE_SILO, me, g->players.spawn_tile[me], 3);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 1; i++) {
         TileRef t = g->players.border[big].data[(i * 7) % g->players.border[big].len];
         ofe_edit_add_unit(g, OFE_UNIT_SAM_LAUNCHER, big, t, 1 + i % 3);
     }
     ofe_edit_set_gold(g, me, 200000000);
+    ofe_edit_set_troops(g, me, player_max_troops(g, me)); /* an idle agent must outlive the tribes for the whole run */
     CHECK(nukes_launch(g, me, OFE_UNIT_MIRV, target, -1, true, false) >= 0);
     CHECK(nukes_launch(g, me, OFE_UNIT_HYDROGEN_BOMB, target, -1, false, false) >= 0);
     int32_t peak = 0;

@@ -39,6 +39,11 @@
 #include "../include/ofe.h"
 #include "util.h"
 
+/* 1 in the TS-parity build (make parity), see docs/ts_parity.md. */
+#ifndef OFE_TS_PARITY
+#define OFE_TS_PARITY 0
+#endif
+
 typedef int32_t TileRef;
 typedef int32_t PlayerId; /* 0 = terra nullius */
 typedef int32_t UnitId; /* opaque: (generation << UNIT_SLOT_BITS) | slot */
@@ -349,6 +354,13 @@ typedef struct Embargo {
 } Embargo;
 OFE_VEC(EmbargoVec, Embargo)
 
+/* A donation sent, kept for the 10 s cooldown per (donor, recipient). */
+typedef struct Donation {
+    PlayerId from, to;
+    int32_t tick;
+} Donation;
+OFE_VEC(DonationVec, Donation)
+
 OFE_VEC(IntentVec, OfeIntent)
 OFE_VEC(EventVec, OfeEvent)
 
@@ -385,6 +397,7 @@ struct OfeGame {
     AllianceRequestVec alliance_requests; /* pending */
     AllianceRequestVec past_requests; /* recent, for the request cooldown */
     EmbargoVec embargoes; /* (from, to) pairs; small */
+    DonationVec donations; /* recent donations (cooldown per recipient) */
 
     /* Nation relations: relation[row * players.cap + other], in [-100, 100]. */
     float *relations;

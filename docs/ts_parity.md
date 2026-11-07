@@ -84,3 +84,51 @@ benchmark must keep passing.
 The parity code paths follow OpenFront's code closely, so they are a derivative
 of OpenFront, which is AGPL-3.0. Distributing builds of this repository has to
 respect that.
+
+## Status and facts for the next waves
+
+Scenarios that match on every tick (`make parity-check`): `core_humans` (1500
+ticks), `war_12humans` (6000: wars, cancelled attacks, alliances that expire,
+are extended or broken, wiped-out players), `social_donations` (3000:
+donations, embargoes, targets, disconnects), `win_check` (900). Humans only so
+far: no nations, tribes, units, ships or nukes.
+
+Where the parity code lives:
+
+| File | What |
+|---|---|
+| `exec_ts.c` | TS's execution list and tick (`game_tick_ts`); the one switch is in `game.c` |
+| `cluster_ts.c` | `removeClusters` of PlayerExecution, step for step |
+| `tiles.c` (`TileSeq`) | insertion-ordered `player.tiles()` and `borderTiles()` (JS Set order) |
+| `attack.c`, `spawn.c`, `player.c`, `intent.c` | small `#if OFE_TS_PARITY` blocks, each says what TS does |
+
+Facts a new module needs:
+
+- **Seeds.** Player ids are `PseudoRandom(simpleHash(gameID)).nextID()`, humans
+  first, then the nations in manifest (or shuffled) order; `game_assign_ids`
+  draws humans and nations, tribes still need their own draws (TribeSpawner).
+  `Executor.random` is `PseudoRandom(simpleHash(gameID) + 1)`. Each
+  AttackExecution has its own `PseudoRandom(123)`. A SpawnExecution seeds
+  `simpleHash(playerId) + simpleHash(gameID)`. Donation executions seed
+  `PseudoRandom(ticks)`. `game.id_seed` and `players.id_hash` hold the hashes.
+- **Execution order.** `PlayerExecution`s tick in the order the players first
+  spawned (not by id), interleaved with attacks in the order they were
+  initialised. A nation or tribe execution is created at game start, before
+  any PlayerExecution, so it ticks first. WinCheck ticks right after the spawn
+  timer, before every player, on the state of the previous tick.
+- **init vs tick work.** At the end of tick t (init): attack start, alliance
+  request / reject / extension, embargo-all, mark disconnected, donation amount.
+  During tick t+1 (tick): spawn, break alliance, embargo, target, retreat order
+  (the retreat executes 20 ticks after the intent, one tick after the attack
+  sees `retreated`), donation. Anything not active during the spawn phase waits
+  for it to end and is initialised in creation order at the end of its last tick.
+- **Ids.** Attack ids are C ids in the parity build (cancel intents resolve the
+  attack by target in the harness). Unit ids are still C handles: wire up TS's
+  global `nextUnitID` when units join the parity tick (`units.c`).
+- **Numbers.** `ofe_pow/exp/log` are OpenFront's DetMath in the parity build
+  and libm in the default build; `sigmoid` uses them too. Everything else uses
+  doubles in TS order. `TsRandom` is unconditional in `util.h`.
+- **Not in TS order yet:** `units_tick`, `doomsday_tick` and `ai_tick` run after
+  the execution list; the alliance-extension prompt for AIs is not called from
+  `alliances_expire_of`; relations decay per player row only for players with
+  a relation row.

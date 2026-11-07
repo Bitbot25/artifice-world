@@ -11,6 +11,12 @@
  *                 + current tick, lowest first,
  * so the front advances where the attacker already surrounds a tile, and
  * prefers plains over mountains.
+ *
+ * Exact in both builds: each attack draws from its own TsRandom(123) like
+ * OpenFront's AttackExecution (priority draws, then one jitter draw per tick),
+ * lists of attacks are walked in creation order, an empty front divides by
+ * zero as in TS, and attack troops never go below 0. The parity build adds
+ * the TS iteration of the border set and its handleDeadDefender pass.
  */
 #include "internal.h"
 
@@ -122,7 +128,7 @@ typedef struct AttackResult {
 } AttackResult;
 
 static double large_territory_bonus(double num_tiles, double depth) {
-    return 1.0 - depth * sigmoid(log(OFE_MAX(num_tiles, 1.0)), LARGE_TERRITORY_STEEPNESS, log(LARGE_TERRITORY_MIDPOINT));
+    return 1.0 - depth * sigmoid(ofe_log(OFE_MAX(num_tiles, 1.0)), LARGE_TERRITORY_STEEPNESS, ofe_log(LARGE_TERRITORY_MIDPOINT));
 }
 
 /* OpenFront's attackLogic: the cost of taking one tile. */

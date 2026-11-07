@@ -8,6 +8,10 @@
  *   troop growth = (10 + troops^0.73 / 4) * (1 - troops / max)
  *                  (bots x0.5; nations x0.9 / 0.95 / 1 / 1.05)
  *   gold         = 100 per tick (bots 50) x gold multiplier
+ *
+ * Donation cooldowns are per (donor, recipient) and embargo-all follows TS's
+ * eligibility. The parity build ticks one player at a time (player_exec_tick_ts)
+ * and expires that player's own alliances and embargoes there.
  */
 #include "internal.h"
 
@@ -113,7 +117,7 @@ double player_max_troops(const OfeGame *g, PlayerId p) {
     if (type == OFE_PLAYER_HUMAN && g->cfg.infinite_troops) {
         base = 1e9;
     } else {
-        base = 2.0 * (det_pow((double)pl->num_tiles[p], 0.6) * 1000.0 + 50000.0) + city;
+        base = 2.0 * (ofe_pow((double)pl->num_tiles[p], 0.6) * 1000.0 + 50000.0) + city;
     }
     if (type == OFE_PLAYER_BOT) return base / 3.0;
     if (type == OFE_PLAYER_HUMAN) return base;
@@ -125,7 +129,7 @@ double player_troop_increase(const OfeGame *g, PlayerId p) {
     const PlayerTable *pl = &g->players;
     double max = player_max_troops(g, p);
     double troops = (double)pl->troops[p];
-    double add = 10.0 + det_pow(troops, 0.73) / 4.0;
+    double add = 10.0 + ofe_pow(troops, 0.73) / 4.0;
     add *= 1.0 - troops / max;
     if (pl->type[p] == OFE_PLAYER_BOT) add *= 0.5;
     if (pl->type[p] == OFE_PLAYER_NATION) {
@@ -399,9 +403,24 @@ static bool can_donate(const OfeGame *g, PlayerId from, PlayerId to, bool gold) 
     if (!player_valid(g, from) || !player_valid(g, to) || from == to) return false;
     if (!player_alive(g, from) || !player_alive(g, to) || !player_friendly(g, from, to)) return false;
     if (g->players.type[to] == OFE_PLAYER_HUMAN && !(gold ? g->cfg.donate_gold : g->cfg.donate_troops)) return false;
-    /* Simplification: one cooldown per donor rather than per recipient. */
-    if (g->players.last_donate_tick[from] >= 0 && g->tick - g->players.last_donate_tick[from] < DONATE_COOLDOWN) return false;
+    /* The cooldown is per (donor, recipient), as in OpenFront. */
+    for (int32_t i = 0; i < g->donations.len; i++) {
+        const Donation *d = &g->donations.data[i];
+        if (d->from == from && d->to == to && g->tick - d->tick < DONATE_COOLDOWN) return false;
+    }
     return true;
+}
+
+static void record_donation(OfeGame *g, PlayerId from, PlayerId to) {
+    DonationVec *v = &g->donations;
+    int32_t w = 0;
+    for (int32_t i = 0; i < v->len; i++) {
+        if (g->tick - v->data[i].tick < DONATE_COOLDOWN) v->data[w++] = v->data[i];
+    }
+    v->len = w;
+    Donation d = {from, to, g->tick};
+    DonationVec_push(v, d);
+    g->players.last_donate_tick[from] = g->tick;
 }
 
 void player_donate_troops(OfeGame *g, PlayerId from, PlayerId to, double troops) {
@@ -410,7 +429,7 @@ void player_donate_troops(OfeGame *g, PlayerId from, PlayerId to, double troops)
     double removed = player_remove_troops(g, from, troops);
     if (removed <= 0) return;
     player_add_troops(g, to, removed);
-    g->players.last_donate_tick[from] = g->tick;
+    record_donation(g, from, to);
     player_update_relation(g, to, from, 50);
     event_emit(g, OFE_EV_DONATION, 0, from, to, 0, removed);
 }
@@ -421,7 +440,7 @@ void player_donate_gold(OfeGame *g, PlayerId from, PlayerId to, double gold) {
     int64_t removed = player_remove_gold(g, from, amount);
     if (removed <= 0) return;
     player_add_gold(g, to, removed);
-    g->players.last_donate_tick[from] = g->tick;
+    record_donation(g, from, to);
     player_update_relation(g, to, from, 50);
     event_emit(g, OFE_EV_DONATION, 0, from, to, 1, (double)removed);
 }

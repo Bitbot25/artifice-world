@@ -8,6 +8,10 @@
  * Random spawns (tribes, random-spawn humans, nations whose spot is taken)
  * try random land tiles at least 30 tiles (manhattan) from other spawns,
  * relaxing that after 750 tries, and require the whole disc to be free land.
+ *
+ * The disc is walked breadth-first like getSpawnTiles, which fixes the order
+ * the tiles join the border list. The parity build never falls back to a random
+ * spot when a chosen tile is unusable (TS just does not spawn).
  */
 #include "internal.h"
 

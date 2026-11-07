@@ -277,6 +277,7 @@ void ofe_game_destroy(OfeGame *g) {
     AllianceRequestVec_free(&g->alliance_requests);
     AllianceRequestVec_free(&g->past_requests);
     EmbargoVec_free(&g->embargoes);
+    DonationVec_free(&g->donations);
     IntentVec_free(&g->pending_intents);
     EventVec_free(&g->events);
     IntVec_free(&g->scratch_a);
@@ -321,6 +322,7 @@ void ofe_game_copy_into(OfeGame *dst, const OfeGame *src) {
     AllianceRequestVec_copy(&dst->alliance_requests, &src->alliance_requests);
     AllianceRequestVec_copy(&dst->past_requests, &src->past_requests);
     EmbargoVec_copy(&dst->embargoes, &src->embargoes);
+    DonationVec_copy(&dst->donations, &src->donations);
     IntentVec_copy(&dst->pending_intents, &src->pending_intents);
     EventVec_copy(&dst->events, &src->events);
 
@@ -354,7 +356,7 @@ OfeGame *ofe_game_clone(const OfeGame *src) {
 /* Tick loop                                                                 */
 /* ======================================================================== */
 
-/* One tick, in OpenFront's order: the spawn timer (or, after the spawn
+/* One tick (the parity build runs TS's execution list instead, exec_ts.c), in OpenFront's order: the spawn timer (or, after the spawn
  * phase, every running system), then new actions. Intents (and AI actions) take effect at the end
  * of the tick, so a new attack first conquers on the next tick and troop
  * growth happens before an attack's troops are taken, as in OpenFront,
@@ -513,6 +515,8 @@ static void fill_player_info(const OfeGame *g, PlayerId p, const PlayerSums *sum
     memcpy(out->unit_levels, pl->unit_levels[p], sizeof(out->unit_levels));
     out->traitor_ticks_left = player_is_traitor(g, p) ? 300 - (g->tick - pl->traitor_tick[p]) : 0;
     out->doomsday_ticks = pl->doomsday_tick[p] >= 0 ? g->tick - pl->doomsday_tick[p] : 0;
+    bool targeting = pl->last_target_tick[p] >= 0 && g->tick - pl->last_target_tick[p] < 100; /* targetDuration */
+    out->target = targeting ? pl->target[p] : 0;
 }
 
 int32_t ofe_game_player_info(const OfeGame *g, int32_t p, OfePlayerInfo *out) {

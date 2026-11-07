@@ -94,7 +94,10 @@ def observe(g, hasher: TileHasher):
     al = sorted([int(min(a["a"], a["b"])), int(max(a["a"], a["b"])), int(a["expires_tick"])] for a in g.alliances())
     owners = g.owner_map()
     fallout = (g.tile_state() & (1 << 13)) != 0
-    lists = {"pl": pl, "un": un, "at": at, "al": al}
+    ex = [[0, int(g.winner), 0, 0]] + sorted([int(p["id"]), int(bool(p["flags"] & 4)), int(p["traitor_ticks_left"]), int(p["target"])] for p in players)
+    ids = [int(p["id"]) for p in players]
+    em = [[a, b] for a in ids for b in ids if a != b and len(ids) <= 40 and g.is_embargoed(a, b)]
+    lists = {"pl": pl, "un": un, "at": at, "al": al, "ex": ex, "em": em}
     return lists, owners, digest(lists, hasher.owners(owners), hasher.mask(fallout))
 
 

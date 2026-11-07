@@ -9,6 +9,10 @@ sync. A digest is a dict of component -> uint32:
   un    units    [[id, type, owner, tile, troops, health, level, constructing], ...] by id
   at    attacks  [[attacker, target, troops, retreating], ...] sorted
   al    alliances [[a, b, expires_tick], ...] with a < b, sorted
+  ex    player extras [[small_id, disconnected, traitor_ticks_left, target], ...] by small id
+        (target = player targeted within the last 100 ticks, else 0); the row [0, winner, 0, 0]
+        comes first (winner = small id, 0 = none, -1 = a team)
+  em    embargoes [[from, to], ...] sorted
 
 List components are hashed as crc32 of their compact JSON text. All values
 are integers (troops and health are floored). Unit types use the shared
@@ -22,7 +26,7 @@ import zlib
 import numpy as np
 
 M32 = 0xFFFFFFFF
-LIST_COMPONENTS = ("pl", "un", "at", "al")
+LIST_COMPONENTS = ("pl", "un", "at", "al", "ex", "em")
 
 
 def fmix32(h: np.ndarray) -> np.ndarray:

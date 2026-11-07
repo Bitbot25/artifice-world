@@ -228,7 +228,8 @@ typedef struct OfePlayerInfo {
     int32_t unit_levels[OFE_UNIT_TYPE_COUNT]; /* summed structure levels, by type */
     int32_t traitor_ticks_left;
     int32_t doomsday_ticks; /* ticks below the doomsday bar (0 = safe) */
-    int32_t reserved[4];
+    int32_t target; /* player targeted in the last 10 s, 0 if none */
+    int32_t reserved[3];
 } OfePlayerInfo;
 
 typedef struct OfeUnitInfo {

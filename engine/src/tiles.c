@@ -9,6 +9,10 @@
  * Border lists: players.border[p] holds every border tile of p, and
  * TileChunk.border_pos holds each tile's index in that list, so adding and
  * removing is O(1) (swap-remove).
+ *
+ * The parity build also keeps TileSeq, insertion-ordered sets of each player's
+ * tiles and border tiles with JS Set semantics: attacks, enclave removal and
+ * dead-defender cleanup iterate them in TS's order.
  */
 #include "internal.h"
 
