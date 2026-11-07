@@ -19,7 +19,6 @@
 #define TRAITOR_DURATION_TICKS (30 * TICKS_PER_SECOND)
 #define ALLIANCE_REQUEST_DURATION (20 * TICKS_PER_SECOND)
 #define ALLIANCE_REQUEST_COOLDOWN (30 * TICKS_PER_SECOND)
-#define ALLIANCE_EXTENSION_PROMPT_OFFSET (30 * TICKS_PER_SECOND)
 #define DONATE_COOLDOWN (10 * TICKS_PER_SECOND)
 #define TEMPORARY_EMBARGO_DURATION (300 * TICKS_PER_SECOND)
 #define RELATION_DECAY 0.05f
@@ -190,8 +189,13 @@ bool player_can_trade(const OfeGame *g, PlayerId a, PlayerId b) {
 void player_add_embargo(OfeGame *g, PlayerId from, PlayerId to, bool temporary) {
     int32_t i = embargo_find(g, from, to);
     if (i >= 0) {
-        /* A permanent embargo stays permanent. */
-        if (!temporary) g->embargoes.data[i].temporary = 0;
+        /* A permanent embargo stays permanent; a temporary one starts over
+         * (TS overwrites the entry, createdAt included). */
+        Embargo *e = &g->embargoes.data[i];
+        if (e->temporary) {
+            e->temporary = (uint8_t)temporary;
+            e->created_tick = g->tick;
+        }
         return;
     }
     Embargo e = {from, to, g->tick, (uint8_t)temporary};
@@ -296,7 +300,6 @@ void alliance_request(OfeGame *g, PlayerId from, PlayerId to) {
     AllianceRequestVec_push(&g->alliance_requests, r);
     AllianceRequestVec_push(&g->past_requests, r);
     event_emit(g, OFE_EV_ALLIANCE_REQUEST, 0, from, to, 0, 0);
-    if (g->players.type[to] != OFE_PLAYER_HUMAN || g->cfg.humans_use_ai) ai_on_alliance_request(g, from, to);
 }
 
 void alliance_break(OfeGame *g, PlayerId breaker, PlayerId other) {
@@ -387,12 +390,6 @@ void alliances_tick(OfeGame *g) {
             event_emit(g, OFE_EV_ALLIANCE_EXPIRED, 0, al->a, al->b, 0, 0);
             g->alliances.data[i] = g->alliances.data[--g->alliances.len];
             continue;
-        }
-        if (al->expires_tick - g->tick == ALLIANCE_EXTENSION_PROMPT_OFFSET) {
-            /* Nations decide whether to extend when prompted. */
-            PlayerId a = al->a, b = al->b;
-            if (g->players.type[a] != OFE_PLAYER_HUMAN || g->cfg.humans_use_ai) ai_on_alliance_extension_prompt(g, a, b);
-            if (g->players.type[b] != OFE_PLAYER_HUMAN || g->cfg.humans_use_ai) ai_on_alliance_extension_prompt(g, b, a);
         }
     }
 }

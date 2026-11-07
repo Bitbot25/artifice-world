@@ -34,4 +34,8 @@ int water_tile_components(const WaterGraph *wg, const OfeMap *m, TileRef t, int3
  * Single-source routes are memoised on the map. */
 int32_t water_find_path(const WaterGraph *wg, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out);
 
+/* Same, but without the detour check (see DETOUR_RATIO in pathfind.c): for
+ * "is there a route" probes whose path is not used. */
+int32_t water_find_path_quick(const WaterGraph *wg, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out);
+
 #endif

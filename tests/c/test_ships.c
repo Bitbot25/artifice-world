@@ -204,7 +204,21 @@ static void test_boat_limit_and_cancel(OfeMap *m) {
     cancel.target = id;
     ofe_game_push_intents(g, &cancel, 1);
     int64_t troops_at_cancel = g->players.troops[1];
-    ofe_game_step(g, 1);
+    ofe_game_step(g, 2); /* the order lands, then the ship plans its way home */
+    /* It heads for the own shore nearest to where it is, not back to where it left. */
+    {
+        int32_t sl = unit_lookup(g, id);
+        CHECK(sl >= 0);
+        if (sl >= 0) {
+            TileRef home = g->units.target_tile[sl], here = g->units.tile[sl];
+            CHECK(tile_owner(g, home) == 1 && map_is_shore(m, home));
+            const IntVec *bd = &g->players.border[1];
+            for (int32_t i = 0; i < bd->len; i++) {
+                if (map_is_shore(m, bd->data[i]) && water_tile_component(water_graph(m), m, bd->data[i]) == water_tile_component(water_graph(m), m, here))
+                    CHECK(map_manhattan(m, bd->data[i], here) >= map_manhattan(m, home, here));
+            }
+        }
+    }
     int guard = 0;
     while (unit_lookup(g, id) >= 0 && guard++ < 200) ofe_game_step(g, 1);
     CHECK(unit_lookup(g, id) < 0);
@@ -380,6 +394,25 @@ static double now(void) {
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
+/* The Bering Strait is two tiles wide on the compact world map: the routing
+ * grids cut it, and a trip from the Arctic coast to the Pacific one went all
+ * the way round the Atlantic (1250 steps; OpenFront's boat needs about 700). */
+static void test_strait_detour(void) {
+    const char *dir = getenv("OFE_MAPS_DIR");
+    if (!dir || !*dir) return;
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/world", dir);
+    OfeMap *m = ofe_map_load(path, 1);
+    const WaterGraph *wg = water_graph(m);
+    TileRef a = map_ref(m, 803, 33), b = map_ref(m, 873, 374);
+    IntVec route = {0};
+    CHECK(water_find_path(wg, m, &a, 1, b, &route) == 0);
+    CHECK(route_ok(m, &route, a, b));
+    CHECK(route.len > 600 && route.len < 800);
+    IntVec_free(&route);
+    ofe_map_release(m);
+}
+
 static void test_world(void) {
     OfeMap *m = load_real_map("world");
     if (!m) {
@@ -428,6 +461,7 @@ static void test_world(void) {
         if (bucket_n[i]) printf("  straight line %-8s: %3d routes, mean %.0f ticks, ratio %.2f\n", names[i], bucket_n[i], (double)buckets[i] / bucket_n[i], bucket_ratio[i] / bucket_n[i]);
     }
     CHECK(found > 100);
+    CHECK(failed == 0); /* narrow straits (Gibraltar, Bosphorus, Danish) do not close seas */
     CHECK(invalid == 0);
     CHECK(max_ratio < 40.0); /* orthogonal steps; the worst case is around a peninsula */
     IntVec_free(&shores);
@@ -530,6 +564,7 @@ int main(void) {
     test_piracy(m);
     test_clone_mid_voyage(m);
     ofe_map_release(m);
+    test_strait_detour();
     test_world();
     return test_summary("test_ships");
 }

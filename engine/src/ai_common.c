@@ -99,6 +99,25 @@ void ai_on_spawn(OfeGame *g, PlayerId p) {
     if (g->players.ai_state[p][AI_RATE] == 0) ai_init_player(g, p);
 }
 
+int32_t ai_next_beat(int32_t from, int32_t rate, int32_t offset) {
+    int32_t d = (offset - from) % rate;
+    return from + (d < 0 ? d + rate : d);
+}
+
+void ai_spawn_phase_tick(OfeGame *g) { ai_nation_spawn_tick(g); }
+
+/* OpenFront creates a nation's behaviours (and sends its opening attack) on
+ * the first tick after the spawn phase, so the opening is not delayed by the
+ * nation's beat. */
+void ai_on_spawn_phase_end(OfeGame *g) {
+    PlayerTable *pl = &g->players;
+    for (PlayerId p = 1; p < pl->count; p++) {
+        if (pl->type[p] == OFE_PLAYER_BOT || !ai_drives(g, p) || !pl->spawned[p] || pl->num_tiles[p] <= 0) continue;
+        if (pl->ai_state[p][AI_RATE] == 0) ai_init_player(g, p);
+        ai_nation_open(g, p);
+    }
+}
+
 void ai_tick(OfeGame *g) {
     PlayerTable *pl = &g->players;
     if (g->cfg.difficulty >= OFE_DIFFICULTY_HARD) ai_nation_follow_up_landings(g);

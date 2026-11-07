@@ -16,7 +16,7 @@
  *                   target_tile = landing shore tile
  *                   path / path_pos = route from src_tile to target_tile
  *                   flags OFE_UF_RETREATING = cancelled, sailing home
- *                   aux0 = 1 once the route has been reversed for the retreat
+ *                   aux0 = 1 once the retreat route has been planned
  *
  *   TRADE_SHIP      target_unit = destination port (id)
  *                   src_tile = the origin port's tile
@@ -50,9 +50,10 @@
  *   - Routes come from pathfind.c (weighted A* on the half-resolution map,
  *     string-pulled, expanded to one tile per tick), not OpenFront's
  *     hierarchical A*. Straight-line stretches take the same number of ticks.
- *   - A cancelled transport ship retraces its own route back to its source
- *     shore instead of searching for the nearest own shore from where it is.
- *     The 25% troop loss on return is kept.
+ *   - A cancelled transport ship sails to the own shore nearest (straight
+ *     line) to where it is, on the water body it is in, like OpenFront's
+ *     closestShoreByWater (which measures by water); 25% of its troops are
+ *     lost on return. With no such shore the troops are refunded in full.
  *   - A transport ship whose route cannot be found is never launched (no
  *     troops are taken), instead of launching and returning them.
  *   - The trade-ship pity timer is kept per port (in ShipsState, indexed by
@@ -316,11 +317,10 @@ TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst) {
     ShipsState *st = state_of(g);
     TileRef landing = transport_landing(g, st, p, dst);
     if (landing < 0) return -1;
+    /* Same water body is enough for the AI's "could a boat go there" probes
+     * (they never use the route), so no search: the nearest candidate. */
     TileRef srcs[SOURCE_CANDIDATES];
-    int n = pick_sources(g, p, landing, srcs);
-    if (n == 0) return -1;
-    int32_t best = water_find_path(water_graph(g->map), g->map, srcs, n, landing, &st->route);
-    return best < 0 ? -1 : srcs[best];
+    return pick_sources(g, p, landing, srcs) > 0 ? srcs[0] : -1;
 }
 
 UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops) {
@@ -370,6 +370,38 @@ bool ships_retreat_transport(OfeGame *g, PlayerId p, UnitId id) {
 
 /* ---- Transport ship: tick -------------------------------------------------------- */
 
+/* The own shore tile nearest to the ship on its water body, or -1. */
+static TileRef nearest_own_shore(const OfeGame *g, int32_t s) {
+    const UnitTable *u = &g->units;
+    const WaterGraph *wg = water_graph(g->map);
+    int32_t comp = water_tile_component(wg, g->map, u->tile[s]);
+    const IntVec *border = &g->players.border[u->owner[s]];
+    TileRef best = -1;
+    int32_t best_d = 0;
+    for (int32_t i = 0; i < border->len && comp >= 0; i++) {
+        TileRef t = border->data[i];
+        if (!map_is_shore(g->map, t) || !tile_touches_comp(wg, g->map, t, comp)) continue;
+        int32_t d = map_manhattan(g->map, t, u->tile[s]);
+        if (best < 0 || d < best_d) {
+            best = t;
+            best_d = d;
+        }
+    }
+    return best;
+}
+
+/* Replaces the ship's route with one to its nearest own shore. */
+static bool plan_retreat(OfeGame *g, int32_t s) {
+    UnitTable *u = &g->units;
+    ShipsState *st = state_of(g);
+    TileRef home = nearest_own_shore(g, s), from = u->tile[s];
+    if (home < 0 || water_find_path_quick(water_graph(g->map), g->map, &from, 1, home, &st->route) < 0) return false;
+    IntVec_copy(&u->path[s], &st->route);
+    u->path_pos[s] = 0;
+    u->target_tile[s] = home;
+    return true;
+}
+
 static void transport_arrive(OfeGame *g, int32_t s) {
     UnitTable *u = &g->units;
     PlayerId p = u->owner[s];
@@ -404,16 +436,12 @@ static void transport_tick(OfeGame *g, int32_t s) {
     if (map_is_water(g->map, u->target_tile[s])) u->flags[s] |= OFE_UF_RETREATING;
 
     if ((u->flags[s] & OFE_UF_RETREATING) && !u->aux0[s]) {
-        /* Retrace the route back to where we left. */
-        int32_t pos = u->path_pos[s];
-        for (int32_t a = 0, b = pos; a < b; a++, b--) {
-            int32_t t = path->data[a];
-            path->data[a] = path->data[b];
-            path->data[b] = t;
-        }
-        path->len = pos + 1;
-        u->path_pos[s] = 0;
         u->aux0[s] = 1;
+        if (!plan_retreat(g, s)) {
+            player_add_troops(g, u->owner[s], u->troops[s]);
+            unit_destroy(g, unit_id_of_slot(g, s), 0);
+            return;
+        }
     }
     if (u->path_pos[s] + 1 >= path->len) {
         transport_arrive(g, s);
@@ -514,7 +542,7 @@ static void spawn_trade_ship(OfeGame *g, ShipsState *st, int32_t port, int32_t d
     UnitTable *u = &g->units;
     PlayerId owner = u->owner[port];
     TileRef from = u->tile[port], to = u->tile[dst_port];
-    if (water_find_path(water_graph(g->map), g->map, &from, 1, to, &st->route) < 0) return;
+    if (water_find_path_quick(water_graph(g->map), g->map, &from, 1, to, &st->route) < 0) return;
     UnitId dst_id = unit_id_of_slot(g, dst_port), port_id = unit_id_of_slot(g, port);
     UnitId id = unit_create(g, OFE_UNIT_TRADE_SHIP, owner, from);
     if (id < 0) return;
@@ -617,7 +645,7 @@ static void trade_tick(OfeGame *g, ShipsState *st, int32_t s) {
             }
         }
         TileRef from = u->tile[s], to = best >= 0 ? u->tile[best] : -1;
-        if (best < 0 || water_find_path(wg, g->map, &from, 1, to, &st->route) < 0) {
+        if (best < 0 || water_find_path_quick(wg, g->map, &from, 1, to, &st->route) < 0) {
             unit_destroy(g, id, 0);
             return;
         }

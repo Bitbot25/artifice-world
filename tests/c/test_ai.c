@@ -7,6 +7,7 @@
  * depends on them.
  */
 #include "test_util.h"
+#include "../../engine/src/ai_common.h"
 
 /* A bigger island with six nations spread out. */
 static OfeMap *make_nation_map(void) {
@@ -67,7 +68,7 @@ static void test_tribes_expand_then_fight(OfeMap *m) {
     ofe_game_destroy(g);
 }
 
-/* Tribes accept any alliance request. */
+/* Tribes accept any alliance request, on their next turn rather than at once. */
 static void test_tribe_accepts_alliance(OfeMap *m) {
     OfeConfig c = base_config();
     c.num_humans = 1;
@@ -86,11 +87,80 @@ static void test_tribe_accepts_alliance(OfeMap *m) {
     ofe_game_push_intents(g, &in, 1);
     ofe_game_step(g, 2);
     OfeAllianceInfo al[2];
+    CHECK(ofe_game_alliances(g, al, 2) == 0); /* not answered the moment it arrives */
+    ofe_game_step(g, 200);
     CHECK(ofe_game_alliances(g, al, 2) == 1);
     ofe_game_destroy(g);
 }
 
 /* ---- Nations ------------------------------------------------------------------ */
+
+/* ---- Nation spawn and opening ------------------------------------------------ */
+
+/* Nations settle near their map spot (not on it) and hop to a new spot on
+ * their beat; tribes were there first, so no nation's disc overlaps one. */
+static void test_nation_spawn_hops(void) {
+    OfeMap *m = make_nation_map();
+    OfeConfig c = base_config();
+    c.num_humans = 0;
+    c.num_bots = 10;
+    c.num_nations = -1;
+    c.spawn_phase_ticks = 200;
+    OfeGame *g = ofe_game_create(m, &c, 77);
+    int32_t spawn_events[64] = {0};
+    TileRef first[64], last[64];
+    for (PlayerId p = 1; p < g->players.count; p++) {
+        CHECK(g->players.type[p] != OFE_PLAYER_NATION || g->players.spawned[p]); /* placed at creation */
+        first[p] = g->players.spawn_tile[p];
+    }
+    for (int t = 0; t < 200; t++) {
+        ofe_game_step(g, 1);
+        const OfeEvent *ev;
+        int32_t n = ofe_game_events(g, &ev);
+        for (int32_t k = 0; k < n; k++) {
+            if (ev[k].type == OFE_EV_PLAYER_SPAWNED && g->players.type[ev[k].b] == OFE_PLAYER_NATION) spawn_events[ev[k].b]++;
+        }
+        ofe_game_clear_events(g);
+    }
+    int32_t hopped = 0, near_spot = 0, nations = 0;
+    for (PlayerId p = 1; p < g->players.count; p++) {
+        if (g->players.type[p] != OFE_PLAYER_NATION) continue;
+        nations++;
+        last[p] = g->players.spawn_tile[p];
+        hopped += spawn_events[p] > 0 && last[p] != first[p];
+        const Nation *n = &m->nations[g->players.nation_index[p]];
+        near_spot += abs(map_x(m, last[p]) - map_x(m, n->tile)) <= 25 && abs(map_y(m, last[p]) - map_y(m, n->tile)) <= 25;
+        CHECK(g->players.num_tiles[p] > 0 && g->players.num_tiles[p] <= 52);
+    }
+    CHECK(nations == m->num_nations);
+    CHECK(near_spot == nations);
+    CHECK(hopped >= 4);
+    check_invariants(g);
+    ofe_game_destroy(g);
+    ofe_map_release(m);
+}
+
+/* The opening move (half the troops at free land) comes on the first tick
+ * after the spawn phase, not on the nation's beat. */
+static void test_nation_opening_is_immediate(void) {
+    OfeMap *m = make_nation_map();
+    OfeConfig c = base_config();
+    c.num_humans = 0;
+    c.num_bots = 0;
+    c.num_nations = -1;
+    c.spawn_phase_ticks = 30;
+    OfeGame *g = ofe_game_create(m, &c, 5);
+    ofe_game_step(g, 31); /* tick 30: phase running; tick 31 ends it */
+    ofe_game_clear_events(g);
+    ofe_game_step(g, 3);
+    const OfeEvent *ev;
+    int32_t n = ofe_game_events(g, &ev), openings = 0;
+    for (int32_t k = 0; k < n; k++) openings += ev[k].type == OFE_EV_ATTACK_STARTED && ev[k].c == 0;
+    CHECK(openings == m->num_nations);
+    ofe_game_destroy(g);
+    ofe_map_release(m);
+}
+
 
 static int32_t nation_tiles_after(OfeMap *m, int difficulty, uint64_t seed, int ticks) {
     OfeConfig c = base_config();
@@ -142,6 +212,9 @@ static OfeGame *make_standoff(OfeMap *m, int difficulty, uint64_t seed) {
 static int32_t answer_alliance(OfeMap *m, int difficulty, double relation, uint64_t seed) {
     OfeGame *g = make_standoff(m, difficulty, seed);
     ofe_edit_set_relation(g, 2, 1, relation);
+    ofe_game_step(g, 3); /* requests from the first ticks count as spawn-phase requests and are refused */
+    g->players.ai_next_tick[2] = g->tick + 20; /* its next full turn */
+    g->players.ai_state[2][AI_PHASE] = 0;
     OfeIntent in = {0};
     in.type = OFE_INTENT_ALLIANCE_REQUEST;
     in.player = 1;
@@ -149,6 +222,8 @@ static int32_t answer_alliance(OfeMap *m, int difficulty, double relation, uint6
     ofe_game_push_intents(g, &in, 1);
     ofe_game_step(g, 3);
     OfeAllianceInfo al[2];
+    CHECK(ofe_game_alliances(g, al, 2) == 0); /* the nation answers on its own turn */
+    ofe_game_step(g, 30);
     int32_t formed = ofe_game_alliances(g, al, 2);
     ofe_game_destroy(g);
     return formed;
@@ -304,6 +379,8 @@ int main(void) {
     test_tribes_expand_then_fight(m);
     test_tribe_accepts_alliance(m);
     test_difficulty_growth();
+    test_nation_spawn_hops();
+    test_nation_opening_is_immediate();
     test_alliance_answers(m);
     test_retaliation(m);
     test_determinism_and_clone();

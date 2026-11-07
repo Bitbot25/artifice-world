@@ -224,7 +224,7 @@ void tiles_share(TileStore *dst, const TileStore *src); /* dst must be empty */
  */
 /* Array-typed columns need a typedef so the X-macros stay uniform. */
 typedef int32_t UnitTypeCounts[OFE_UNIT_TYPE_COUNT];
-typedef int32_t AiState[8];
+typedef int32_t AiState[10];
 
 #define PLAYER_COLUMNS(X)                                                           \
     X(uint8_t, type) /* OfePlayerType */                                            \

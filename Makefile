@@ -20,7 +20,7 @@ SRC  := $(wildcard engine/src/*.c)
 OBJ  := $(patsubst engine/src/%.c,$(BUILD)/obj/%.o,$(SRC))
 DEPS := $(OBJ:.o=.d)
 
-.PHONY: all clean test bench debug ctest pytest parity parity-check
+.PHONY: all clean test bench debug ctest pytest parity parity-check parity-paths
 
 all: $(BUILD)/libofe.so $(BUILD)/libofe.a
 
@@ -68,8 +68,18 @@ parity:
 
 # Lockstep comparison with the TS engine over every parity scenario
 # (needs OPENFRONT_DIR, see tools/parity/README.md).
+# Replays TS water-path references on pathfind_ts.c (tools/parity/water_paths.ts
+# makes them); build-parity/water_paths_c <map dir> <compact> <reference>.
+build-parity/water_paths_c: tools/parity/water_paths_c.c
+	$(MAKE) parity
+	$(CC) $(CFLAGS) -DOFE_TS_PARITY=1 -D_GNU_SOURCE -Iengine/src -o $@ $< build-parity/libofe.a $(LDFLAGS)
+
 parity-check: parity
 	@for s in tools/parity/scenarios/*.json; do python3 tools/parity/diff.py $$s || exit 1; done
+
+# Missile / air / rail path code against the TS pathfinders (needs OPENFRONT_DIR).
+parity-paths: parity
+	python3 tools/parity/air_rail_paths.py
 
 clean:
 	rm -rf build build-debug build-parity

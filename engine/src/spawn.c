@@ -10,8 +10,8 @@
  * relaxing that after 750 tries, and require the whole disc to be free land.
  *
  * The disc is walked breadth-first like getSpawnTiles, which fixes the order
- * the tiles join the border list. The parity build never falls back to a random
- * spot when a chosen tile is unusable (TS just does not spawn).
+ * the tiles join the border list. A chosen tile that is unusable never falls
+ * back to a random spot (TS just does not spawn).
  */
 #include "internal.h"
 
@@ -87,13 +87,11 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     for (int32_t i = 0; i < old_copy.len; i++) tile_set_owner(g, old_copy.data[i], 0);
 
     bool ok = false;
-    if (center >= 0 && center < g->map->num_tiles) ok = spawn_disc(g, center, false, &disc) > 0;
-#if OFE_TS_PARITY
-    /* TS: a spawn on a chosen tile never falls back to a random spot. */
-    if (!ok && center < 0) {
-#else
-    if (!ok) {
-#endif
+    if (center >= g->map->num_tiles) {
+        center = -1;
+    } else if (center >= 0) {
+        ok = spawn_disc(g, center, false, &disc) > 0; /* a chosen spot is never swapped for another */
+    } else {
         center = spawn_random_tile(g, p, &g->rng);
         ok = center >= 0 && spawn_disc(g, center, true, &disc) > 0;
     }
@@ -131,4 +129,5 @@ void spawn_phase_end(OfeGame *g) {
     }
     g->start_tick = g->tick;
     event_emit(g, OFE_EV_SPAWN_PHASE_END, g->tick, 0, 0, 0, 0);
+    ai_on_spawn_phase_end(g);
 }

@@ -30,6 +30,13 @@
  *      becomes two steps, as in OpenFront's traced paths), so route length
  *      in tiles is exactly the number of ticks the ship needs.
  *
+ * Narrow straits: nodes sit on even tiles and a move needs a clear line, so
+ * a strait one or two tiles wide can be cut in both grids (the Mediterranean
+ * and the Black Sea then look closed). When both grids fail but the full-
+ * resolution water bodies say the two ends are connected, a third grid with a
+ * node on every tile is built (once per map, on first need) and searched with
+ * throwaway scratch buffers. Its answer, route or no route, is memoised.
+ *
  * Routes between the same two tiles are memoised per map as key points (a
  * route is a pure function of the terrain, so the memo only affects speed).
  * Search scratch buffers are pooled per map and borrowed under a lock.
@@ -44,10 +51,22 @@
 #define ASTAR_WEIGHT 3.0f
 #endif
 #define ASTAR_MAX_POPS 2000000
+#ifndef FINE_STRIDE
 #define FINE_STRIDE 2
+#endif
+#ifndef COARSE_STRIDE
 #define COARSE_STRIDE 4
-#define COARSE_MIN_DIST 80 /* straight-line tiles; shorter routes use the fine grid */
-#define MEMO_SLOTS 16384
+#endif
+#define FULL_MAX_POPS 150000 /* a failed full-grid search must stay cheap */
+#ifndef FULL_WEIGHT
+#define FULL_WEIGHT 6.0f /* the full grid is searched greedily: it only has to avoid detours */
+#endif
+#define FULL_POCKET 16 /* bodies smaller than this are not entered from the full grid */
+#ifndef COARSE_MIN_DIST
+#define COARSE_MIN_DIST 80
+#endif
+
+#define MEMO_SLOTS 131072
 #define MEMO_MAX_LOAD (MEMO_SLOTS * 3 / 5)
 
 /* ---- Data -------------------------------------------------------------- */
@@ -55,6 +74,8 @@
 typedef struct Grid {
     int stride, mw, mh;
     int32_t pocket; /* bodies smaller than this are not used to enter the grid */
+    int32_t max_pops; /* A* gives up after this many expansions */
+    float weight; /* heuristic inflation */
     uint8_t *adj; /* bit d set: the move in direction d is valid */
     uint16_t *comp; /* 0 = land node, else body id + 1 (4-connected over valid moves) */
     int32_t *size; /* nodes per body id (index 0 unused) */
@@ -74,7 +95,7 @@ typedef struct Scratch {
 
 typedef struct MemoEntry {
     TileRef src, dst; /* src = -1: empty */
-    int32_t len;
+    int32_t len; /* key points; -1 = known to have no route */
     int32_t *pts;
 } MemoEntry;
 
@@ -83,7 +104,9 @@ struct WaterGraph {
     int32_t num_comps;
     uint16_t *comp; /* full resolution: 0 land, else body id + 1 */
     Grid fine, coarse;
-    size_t max_nodes; /* largest grid, for scratch buffers */
+    Grid *full; /* a node on every tile; built on first need, under lock */
+    Scratch *full_scratch; /* idle scratch for it (big: kept for reuse, NULL while borrowed) */
+    size_t max_nodes; /* largest of the always-built grids, for scratch buffers */
     pthread_mutex_t lock;
     Scratch *free_scratch;
     MemoEntry *memo;
@@ -155,6 +178,8 @@ static inline bool node_water(const Grid *gr, const OfeMap *m, int cx, int cy) {
 static void grid_build(Grid *gr, const OfeMap *m, int stride, int32_t pocket) {
     gr->stride = stride;
     gr->pocket = pocket;
+    gr->max_pops = stride == 1 ? FULL_MAX_POPS : ASTAR_MAX_POPS;
+    gr->weight = stride == 1 ? FULL_WEIGHT : ASTAR_WEIGHT;
     gr->mw = (m->width - 1) / stride + 1;
     gr->mh = (m->height - 1) / stride + 1;
     const int mw = gr->mw, mh = gr->mh;
@@ -173,7 +198,7 @@ static void grid_build(Grid *gr, const OfeMap *m, int stride, int32_t pocket) {
                 int nx = cx + DX[d], ny = cy + DY[d];
                 if (nx < 0 || ny < 0 || nx >= mw || ny >= mh || !node_water(gr, m, nx, ny)) continue;
                 if (d >= 4 && !((bits >> (DX[d] < 0 ? 2 : 3)) & 1 && (bits >> (DY[d] < 0 ? 0 : 1)) & 1)) continue;
-                if (line_is_water(m, cx * stride, cy * stride, nx * stride, ny * stride)) bits |= (uint8_t)(1u << d);
+                if (stride == 1 || line_is_water(m, cx * stride, cy * stride, nx * stride, ny * stride)) bits |= (uint8_t)(1u << d);
             }
             gr->adj[cy * mw + cx] = bits;
         }
@@ -246,6 +271,8 @@ static void *graph_build(const OfeMap *m) {
     return wg;
 }
 
+static void scratch_free(Scratch *s);
+
 static void memo_clear(WaterGraph *wg) {
     for (int i = 0; i < MEMO_SLOTS; i++) {
         if (wg->memo[i].src >= 0) free(wg->memo[i].pts);
@@ -261,17 +288,13 @@ static void graph_free(void *p) {
     free(wg->memo);
     for (Scratch *s = wg->free_scratch; s;) {
         Scratch *next = s->next;
-        free(s->g);
-        free(s->seen);
-        free(s->closed);
-        free(s->dir);
-        heap_free(&s->heap);
-        IntVec_free(&s->cells);
-        IntVec_free(&s->poly);
-        IntVec_free(&s->kept);
-        IntVec_free(&s->pts);
-        free(s);
+        scratch_free(s);
         s = next;
+    }
+    if (wg->full_scratch) scratch_free(wg->full_scratch);
+    if (wg->full) {
+        grid_free(wg->full);
+        free(wg->full);
     }
     pthread_mutex_destroy(&wg->lock);
     free(wg->comp);
@@ -317,20 +340,34 @@ int32_t water_tile_component(const WaterGraph *wg, const OfeMap *m, TileRef t) {
 
 /* ---- Scratch pool ------------------------------------------------------- */
 
+static Scratch *scratch_new(size_t n) {
+    Scratch *s = (Scratch *)ofe_xcalloc(1, sizeof(Scratch));
+    s->g = (float *)ofe_xmalloc(n * sizeof(float));
+    s->seen = (uint32_t *)ofe_xcalloc(n, sizeof(uint32_t));
+    s->closed = (uint32_t *)ofe_xcalloc(n, sizeof(uint32_t));
+    s->dir = (uint8_t *)ofe_xmalloc(n);
+    return s;
+}
+
+static void scratch_free(Scratch *s) {
+    free(s->g);
+    free(s->seen);
+    free(s->closed);
+    free(s->dir);
+    heap_free(&s->heap);
+    IntVec_free(&s->cells);
+    IntVec_free(&s->poly);
+    IntVec_free(&s->kept);
+    IntVec_free(&s->pts);
+    free(s);
+}
+
 static Scratch *scratch_acquire(WaterGraph *wg) {
     pthread_mutex_lock(&wg->lock);
     Scratch *s = wg->free_scratch;
     if (s) wg->free_scratch = s->next;
     pthread_mutex_unlock(&wg->lock);
-    if (!s) {
-        size_t n = wg->max_nodes;
-        s = (Scratch *)ofe_xcalloc(1, sizeof(Scratch));
-        s->g = (float *)ofe_xmalloc(n * sizeof(float));
-        s->seen = (uint32_t *)ofe_xcalloc(n, sizeof(uint32_t));
-        s->closed = (uint32_t *)ofe_xcalloc(n, sizeof(uint32_t));
-        s->dir = (uint8_t *)ofe_xmalloc(n);
-    }
-    return s;
+    return s ? s : scratch_new(wg->max_nodes);
 }
 
 static void scratch_release(WaterGraph *wg, Scratch *s) {
@@ -422,7 +459,7 @@ static bool astar(const Grid *gr, Scratch *sc, const int32_t *src_nodes, int ns,
     sc->heap.len = 0;
     sc->cells.len = 0;
     /* Heuristic: orthogonal steps to the goal (in tiles), inflated for speed. */
-#define H(cx, cy) (ASTAR_WEIGHT * (float)(stride * (abs((cx) - gx) + abs((cy) - gy))))
+#define H(cx, cy) (gr->weight * (float)(stride * (abs((cx) - gx) + abs((cy) - gy))))
     for (int i = 0; i < ns; i++) {
         int32_t c = src_nodes[i];
         if (sc->seen[c] == gen) continue;
@@ -450,7 +487,7 @@ static bool astar(const Grid *gr, Scratch *sc, const int32_t *src_nodes, int ns,
             }
             return true;
         }
-        if (++pops > ASTAR_MAX_POPS) return false;
+        if (++pops > gr->max_pops) return false;
         const int cx = c % mw;
         const float cg = sc->g[c];
         const unsigned adj = gr->adj[c];
@@ -552,16 +589,21 @@ static inline uint32_t memo_hash(TileRef a, TileRef b) {
     return (h ^ (h >> 15)) & (MEMO_SLOTS - 1);
 }
 
-static bool memo_get(WaterGraph *wg, TileRef src, TileRef dst, IntVec *pts) {
-    bool found = false;
+/* 1 = hit (points in pts), -1 = known to have no route, 0 = unknown. */
+static int memo_get(WaterGraph *wg, TileRef src, TileRef dst, IntVec *pts) {
+    int found = 0;
     pthread_mutex_lock(&wg->lock);
     for (uint32_t i = memo_hash(src, dst); wg->memo[i].src >= 0; i = (i + 1) & (MEMO_SLOTS - 1)) {
         if (wg->memo[i].src == src && wg->memo[i].dst == dst) {
+            if (wg->memo[i].len < 0) {
+                found = -1;
+                break;
+            }
             pts->len = 0;
             IntVec_reserve(pts, wg->memo[i].len);
             memcpy(pts->data, wg->memo[i].pts, (size_t)wg->memo[i].len * sizeof(int32_t));
             pts->len = wg->memo[i].len;
-            found = true;
+            found = 1;
             break;
         }
     }
@@ -569,6 +611,7 @@ static bool memo_get(WaterGraph *wg, TileRef src, TileRef dst, IntVec *pts) {
     return found;
 }
 
+/* pts = NULL records "no route". */
 static void memo_put(WaterGraph *wg, TileRef src, TileRef dst, const IntVec *pts) {
     pthread_mutex_lock(&wg->lock);
     if (wg->memo_count >= MEMO_MAX_LOAD) memo_clear(wg);
@@ -579,9 +622,12 @@ static void memo_put(WaterGraph *wg, TileRef src, TileRef dst, const IntVec *pts
     }
     wg->memo[i].src = src;
     wg->memo[i].dst = dst;
-    wg->memo[i].len = pts->len;
-    wg->memo[i].pts = (int32_t *)ofe_xmalloc((size_t)pts->len * sizeof(int32_t));
-    memcpy(wg->memo[i].pts, pts->data, (size_t)pts->len * sizeof(int32_t));
+    wg->memo[i].len = pts ? pts->len : -1;
+    wg->memo[i].pts = NULL;
+    if (pts) {
+        wg->memo[i].pts = (int32_t *)ofe_xmalloc((size_t)pts->len * sizeof(int32_t));
+        memcpy(wg->memo[i].pts, pts->data, (size_t)pts->len * sizeof(int32_t));
+    }
     wg->memo_count++;
 done:
     pthread_mutex_unlock(&wg->lock);
@@ -642,20 +688,77 @@ static int32_t route_on_grid(const Grid *gr, const OfeMap *m, Scratch *sc, const
     return win;
 }
 
-static int32_t route_points(const WaterGraph *wg, const OfeMap *m, Scratch *sc, const TileRef *srcs, int nsrc, TileRef dst) {
+/* Last resort: a node on every tile, so no strait is too narrow. Only worth
+ * trying when an end of the route is in the destination's full-resolution
+ * water body. Key points go to `out`. */
+static int32_t route_full(WaterGraph *wg, const OfeMap *m, IntVec *out, const TileRef *srcs, int nsrc, TileRef dst) {
+    int32_t body = water_tile_component(wg, m, dst);
+    bool same = false;
+    for (int i = 0; i < nsrc && !same; i++) same = body >= 0 && water_tile_component(wg, m, srcs[i]) == body;
+    if (!same) return -2;
+
+    pthread_mutex_lock(&wg->lock);
+    if (!wg->full) {
+        Grid *gr = (Grid *)ofe_xcalloc(1, sizeof(Grid));
+        grid_build(gr, m, 1, FULL_POCKET);
+        wg->full = gr;
+    }
+    Scratch *sc = wg->full_scratch;
+    wg->full_scratch = NULL;
+    pthread_mutex_unlock(&wg->lock);
+
+    if (!sc) sc = scratch_new((size_t)wg->full->mw * wg->full->mh);
+    int32_t win = route_on_grid(wg->full, m, sc, srcs, nsrc, dst);
+    if (win >= 0) IntVec_copy(out, &sc->pts);
+    pthread_mutex_lock(&wg->lock);
+    if (wg->full_scratch) {
+        scratch_free(sc);
+    } else {
+        wg->full_scratch = sc;
+    }
+    pthread_mutex_unlock(&wg->lock);
+    return win;
+}
+
+/* Ticks a route through the key points takes (orthogonal steps). */
+static int32_t key_length(const OfeMap *m, const IntVec *pts) {
+    int32_t len = 0;
+    for (int32_t i = 0; i + 1 < pts->len; i++) len += map_manhattan(m, pts->data[i], pts->data[i + 1]);
+    return len;
+}
+
+/* A grid route this many times the straight line is suspicious: it may be a
+ * detour around a strait the grids cut (the Bering Strait turns Arctic to
+ * Pacific trips into a tour of the Atlantic), so the full grid gets a say. */
+#define DETOUR_RATIO 3.0
+#define DETOUR_MIN_DIST 100
+
+/* Key points of the best route in sc->pts; returns the chosen source, -1 if
+ * there is no route, -2 if there is none but it is not known for sure that
+ * none exists (nothing worth remembering). */
+static int32_t route_points(WaterGraph *wg, const OfeMap *m, Scratch *sc, const TileRef *srcs, int nsrc, TileRef dst, bool refine) {
     int near = 1 << 30;
     for (int i = 0; i < nsrc; i++) {
         int d = OFE_MAX(abs(map_x(m, srcs[i]) - map_x(m, dst)), abs(map_y(m, srcs[i]) - map_y(m, dst)));
         near = OFE_MIN(near, d);
     }
-    if (near >= COARSE_MIN_DIST) {
-        int32_t win = route_on_grid(&wg->coarse, m, sc, srcs, nsrc, dst);
-        if (win >= 0) return win;
+    int32_t win = -1;
+    if (near >= COARSE_MIN_DIST) win = route_on_grid(&wg->coarse, m, sc, srcs, nsrc, dst);
+    if (win < 0) win = route_on_grid(&wg->fine, m, sc, srcs, nsrc, dst);
+    if (win < 0) return route_full(wg, m, &sc->pts, srcs, nsrc, dst);
+    if (refine && near >= DETOUR_MIN_DIST && key_length(m, &sc->pts) > DETOUR_RATIO * near) {
+        IntVec alt = {0};
+        int32_t w2 = route_full(wg, m, &alt, srcs, nsrc, dst);
+        if (w2 >= 0 && key_length(m, &alt) < key_length(m, &sc->pts)) {
+            IntVec_copy(&sc->pts, &alt);
+            win = w2;
+        }
+        IntVec_free(&alt);
     }
-    return route_on_grid(&wg->fine, m, sc, srcs, nsrc, dst);
+    return win;
 }
 
-int32_t water_find_path(const WaterGraph *wg_const, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out) {
+static int32_t find_path(const WaterGraph *wg_const, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out, bool refine) {
     WaterGraph *wg = (WaterGraph *)wg_const; /* mutable parts (memo, scratch pool) are lock-protected */
     out->len = 0;
     if (nsrc <= 0 || nsrc > WATER_MAX_SOURCES) return -1;
@@ -664,14 +767,37 @@ int32_t water_find_path(const WaterGraph *wg_const, const OfeMap *m, const TileR
         return 0;
     }
     Scratch *sc = scratch_acquire(wg);
-    int32_t win;
-    if (nsrc == 1 && memo_get(wg, srcs[0], dst, &sc->pts)) {
-        win = 0;
-    } else {
-        win = route_points(wg, m, sc, srcs, nsrc, dst);
-        if (win >= 0 && nsrc == 1) memo_put(wg, srcs[0], dst, &sc->pts);
+    /* Memo key: first source and destination; with several sources a hash of
+     * the set rides in the destination's unused high bits. */
+    uint32_t set_hash = 0;
+    for (int i = 0; i < nsrc && nsrc > 1; i++) set_hash = set_hash * 31u + (uint32_t)srcs[i];
+    TileRef key_dst = nsrc > 1 ? (TileRef)((uint32_t)dst | ((set_hash >> 24 ^ (uint32_t)nsrc) & 0x7Fu) << 23) : dst;
+    if (!refine) key_dst |= 1 << 30; /* unrefined routes are cached apart */
+    int32_t win = -1;
+    int known = memo_get(wg, srcs[0], key_dst, &sc->pts);
+    if (known > 0) {
+        win = -1;
+        for (int i = 0; i < nsrc && win < 0; i++) {
+            if (srcs[i] == sc->pts.data[0]) win = i;
+        }
+        if (win < 0) known = 0; /* a hash clash: another set's route */
+    }
+    if (known < 0) {
+        win = -1;
+    } else if (known == 0) {
+        win = route_points(wg, m, sc, srcs, nsrc, dst, refine);
+        if (win != -2) memo_put(wg, srcs[0], key_dst, win >= 0 ? &sc->pts : NULL);
+        if (win < 0) win = -1;
     }
     if (win >= 0) expand(m, sc->pts.data, sc->pts.len, out);
     scratch_release(wg, sc);
     return win;
+}
+
+int32_t water_find_path(const WaterGraph *wg, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out) {
+    return find_path(wg, m, srcs, nsrc, dst, out, true);
+}
+
+int32_t water_find_path_quick(const WaterGraph *wg, const OfeMap *m, const TileRef *srcs, int nsrc, TileRef dst, IntVec *out) {
+    return find_path(wg, m, srcs, nsrc, dst, out, false);
 }

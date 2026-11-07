@@ -30,13 +30,14 @@ void ai_tribe_init(OfeGame *g, PlayerId p) {
     uint64_t *rng = &pl->ai_rng[p];
     int32_t *st = pl->ai_state[p];
     int32_t rate = rng_int(rng, 40, 80);
-    int32_t offset = rng_int(rng, 0, rate);
+    st[AI_OFFSET] = rng_int(rng, 0, rate);
     st[AI_RATE] = rate;
     st[AI_TRIGGER] = rng_int(rng, 50, 60);
     st[AI_RESERVE] = rng_int(rng, 30, 40);
     st[AI_EXPAND] = rng_int(rng, 10, 20);
     st[AI_FLAGS] = 0;
-    pl->ai_next_tick[p] = OFE_MAX(g->tick, g->spawn_phase_ticks) + offset;
+    /* Tribes sleep through the spawn phase; the systems start the tick after it. */
+    pl->ai_next_tick[p] = ai_next_beat(OFE_MAX(g->tick, g->spawn_phase_ticks + 2), rate, st[AI_OFFSET]);
 }
 
 /* ---- Attacks ---------------------------------------------------------------------- */
@@ -166,6 +167,7 @@ void ai_tribe_decide(OfeGame *g, PlayerId p) {
         tribe_send_attack(&c, 0);
         return;
     }
+    ai_answer_alliance_asks(&c);
     delete_next_structure(&c);
     maybe_attack(&c);
 }
