@@ -68,6 +68,12 @@ parity:
 
 # Lockstep comparison with the TS engine over every parity scenario
 # (needs OPENFRONT_DIR, see tools/parity/README.md).
+# Replays TS water-path references on pathfind_ts.c (tools/parity/water_paths.ts
+# makes them); build-parity/water_paths_c <map dir> <compact> <reference>.
+build-parity/water_paths_c: tools/parity/water_paths_c.c
+	$(MAKE) parity
+	$(CC) $(CFLAGS) -DOFE_TS_PARITY=1 -D_GNU_SOURCE -Iengine/src -o $@ $< build-parity/libofe.a $(LDFLAGS)
+
 parity-check: parity
 	@for s in tools/parity/scenarios/*.json; do python3 tools/parity/diff.py $$s || exit 1; done
 
