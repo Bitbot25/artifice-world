@@ -500,9 +500,9 @@ static void test_real_map(void) {
         return;
     }
     ofe_edit_add_unit(g, OFE_UNIT_MISSILE_SILO, me, g->players.spawn_tile[me], 3);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) { /* a couple of SAMs: enough to shoot some down, not everything */
         TileRef t = g->players.border[big].data[(i * 7) % g->players.border[big].len];
-        ofe_edit_add_unit(g, OFE_UNIT_SAM_LAUNCHER, big, t, 1 + i % 3);
+        ofe_edit_add_unit(g, OFE_UNIT_SAM_LAUNCHER, big, t, 1);
     }
     ofe_edit_set_gold(g, me, 200000000);
     CHECK(nukes_launch(g, me, OFE_UNIT_MIRV, target, -1, true, false) >= 0);

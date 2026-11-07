@@ -316,11 +316,10 @@ TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst) {
     ShipsState *st = state_of(g);
     TileRef landing = transport_landing(g, st, p, dst);
     if (landing < 0) return -1;
+    /* Same water body is enough for the AI's "could a boat go there" probes
+     * (they never use the route), so no search: the nearest candidate. */
     TileRef srcs[SOURCE_CANDIDATES];
-    int n = pick_sources(g, p, landing, srcs);
-    if (n == 0) return -1;
-    int32_t best = water_find_path(water_graph(g->map), g->map, srcs, n, landing, &st->route);
-    return best < 0 ? -1 : srcs[best];
+    return pick_sources(g, p, landing, srcs) > 0 ? srcs[0] : -1;
 }
 
 UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops) {
@@ -514,7 +513,7 @@ static void spawn_trade_ship(OfeGame *g, ShipsState *st, int32_t port, int32_t d
     UnitTable *u = &g->units;
     PlayerId owner = u->owner[port];
     TileRef from = u->tile[port], to = u->tile[dst_port];
-    if (water_find_path(water_graph(g->map), g->map, &from, 1, to, &st->route) < 0) return;
+    if (water_find_path_quick(water_graph(g->map), g->map, &from, 1, to, &st->route) < 0) return;
     UnitId dst_id = unit_id_of_slot(g, dst_port), port_id = unit_id_of_slot(g, port);
     UnitId id = unit_create(g, OFE_UNIT_TRADE_SHIP, owner, from);
     if (id < 0) return;
@@ -617,7 +616,7 @@ static void trade_tick(OfeGame *g, ShipsState *st, int32_t s) {
             }
         }
         TileRef from = u->tile[s], to = best >= 0 ? u->tile[best] : -1;
-        if (best < 0 || water_find_path(wg, g->map, &from, 1, to, &st->route) < 0) {
+        if (best < 0 || water_find_path_quick(wg, g->map, &from, 1, to, &st->route) < 0) {
             unit_destroy(g, id, 0);
             return;
         }
