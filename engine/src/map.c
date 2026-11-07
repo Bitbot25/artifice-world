@@ -8,7 +8,6 @@
 #include <pthread.h>
 
 #include "internal.h"
-#include "paths_ts.h"
 
 /* Map caches live outside OfeMap's public fields so map.c owns locking. */
 typedef struct MapCaches {
@@ -293,13 +292,28 @@ OfeMap *ofe_map_load(const char *map_dir, int compact) {
     map_derive(m);
     map_derive_mini(m);
 #if OFE_TS_PARITY
-    /* TS: the mini map is OpenFront's own map4x.bin / map16x.bin, not a 2x2 reduction. */
+    /* OpenFront routes ships on the mini map from its own file (map4x.bin, or
+     * map16x.bin for compact games), which is not the 2x2 reduction above. */
     {
-        uint8_t *mt = ts_mini_terrain_load(map_dir, compact, w, h);
-        if (mt) {
-            free(m->mini_terrain);
-            m->mini_terrain = mt;
+        char mw_key[8];
+        snprintf(mw_key, sizeof(mw_key), "%s", compact ? "map16x" : "map4x");
+        int32_t mw, mh, dummy_n;
+        char dummy_name[64];
+        Nation *dummy;
+        char *json2 = (char *)read_file(path, &len);
+        if (json2 && parse_manifest(json2, len, mw_key, &mw, &mh, dummy_name, &dummy, &dummy_n)) {
+            free(dummy);
+            uint8_t *mt = (uint8_t *)ofe_xmalloc((size_t)mw * mh);
+            if (load_bin(map_dir, compact ? "map16x.bin" : "map4x.bin", mw, mh, mt)) {
+                free(m->mini_terrain);
+                m->mini_terrain = mt;
+                m->mini_width = mw;
+                m->mini_height = mh;
+            } else {
+                free(mt);
+            }
         }
+        free(json2);
     }
 #endif
 
