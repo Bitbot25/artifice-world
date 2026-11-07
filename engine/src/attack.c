@@ -105,7 +105,7 @@ double attack_troops_against(const OfeGame *g, PlayerId attacker, PlayerId targe
 
 /* Active attack rows sorted by id: the order OpenFront creates them in. Row
  * indices are reused, so they do not tell. */
-static void attacks_in_creation_order(const OfeGame *g, IntVec *out) {
+void attacks_in_creation_order(const OfeGame *g, IntVec *out) {
     const AttackTable *t = &g->attacks;
     for (int32_t i = 0; i < t->count; i++) {
         if (!t->active[i]) continue;

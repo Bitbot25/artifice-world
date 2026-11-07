@@ -81,8 +81,10 @@ def to_c_intent(g, m, it: dict):
     return d
 
 
-def observe(g, hasher: TileHasher):
+def observe(g, hasher: TileHasher, tribes_exist: bool = True):
     players = g.players()
+    if not tribes_exist:  # TS adds the tribe players when their spawn executions tick, on tick 1
+        players = players[players["type"] != 2]
     pl = [[int(p["id"]), int(p["troops"]), int(p["gold"]), int(p["num_tiles"])] for p in players]
     pl.sort()
     units = g.units()
@@ -113,7 +115,7 @@ def run(sc: dict, out, detail: set[int]):
         if intents:
             g.push(intents)
         g.step(1)
-        lists, owners, h = observe(g, hasher)
+        lists, owners, h = observe(g, hasher, t > 0)
         rec = {"t": t, "h": h}
         if t in detail:
             rec["d"] = lists
