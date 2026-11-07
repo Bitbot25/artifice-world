@@ -43,3 +43,18 @@ TS traces are cached in `out/` by scenario contents and OpenFront commit;
   `troops` (absolute; omitted = the engine default), `unit` (TS unit id),
   `unit_type` (C unit name), `amount`, `flag` (start/stop, rocket up,
   disconnected). `cancel_attack` names the attack by its `target`.
+
+## Water pathfinder (`engine/src/pathfind_ts.c`)
+
+`water_paths.ts` runs OpenFront's real `WaterPathFinder` (path queries,
+multi-source queries and whole voyages of `next()` calls, with destination
+changes, teleports and invalidations) on a map and writes queries plus TS
+results; `water_paths_c.c` replays them on `pathfind_ts.c` and compares tile for
+tile (also reports cost against the default pathfinder).
+
+```bash
+cd $OPENFRONT_DIR && node_modules/.bin/tsx <repo>/tools/parity/water_paths.ts --ref . \
+    --map world --size compact --queries 3000 --seed 1 --out /tmp/world_compact.txt
+cd <repo> && make build-parity/water_paths_c
+build-parity/water_paths_c $OPENFRONT_DIR/resources/maps/world 1 /tmp/world_compact.txt   # 1 = compact
+```
