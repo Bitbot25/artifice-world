@@ -695,6 +695,7 @@ static void detonate(OfeGame *g, UnitExec *x, int32_t slot) {
         if (!u->alive[i] || is_nuke_type(u->type[i]) || u->type[i] == OFE_UNIT_MIRV || u->type[i] == OFE_UNIT_SAM_MISSILE) continue;
         if (map_dist2(g->map, x->tile, u->tile[i]) < outer2) unit_destroy(g, unit_id_of_slot(g, i), 0);
     }
+    event_emit(g, OFE_EV_NUKE_DETONATED, x->uid, type, x->player, x->tile, (double)tiles.len);
     x->active = 0;
     u->aux2[slot] |= UF_NUKE_REACHED;
     unit_destroy(g, unit_id_of_slot(g, slot), 0);
@@ -748,6 +749,7 @@ static bool nuke_tick(OfeGame *g, UnitExec *x) {
         IntVec_free(&traj);
         u->aux0[slot] = 0;
         u->aux1[slot] = x->wait;
+        event_emit(g, OFE_EV_NUKE_LAUNCHED, x->uid, x->type, p, x->tile, 0);
         if (x->type != OFE_UNIT_MIRV_WARHEAD) nuke_break_alliances(g, p, x->type, x->tile);
         if (silo >= 0) launch_missile(g, silo);
         return true;
@@ -1222,6 +1224,7 @@ static bool mirv_tick(OfeGame *g, UnitExec *x) {
         u->target_tile[slot] = x->tile;
         u->aux3[slot] = m->target_player;
         g->mirvs_launched++;
+        event_emit(g, OFE_EV_NUKE_LAUNCHED, x->uid, OFE_UNIT_MIRV, p, x->tile, 0);
         /* Betrayal on launch, only once the missile exists. */
         if (m->target_player != 0) {
             if (alliance_find(g, p, m->target_player) >= 0) alliance_break_raw(g, p, m->target_player);

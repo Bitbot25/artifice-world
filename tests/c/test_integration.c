@@ -188,6 +188,7 @@ static void test_upgrade_delete(OfeMap *m) {
     ofe_game_step(g, 1);
     CHECK(g->units.level[unit_lookup(g, city)] == 3);
     CHECK(g->players.unit_levels[1][OFE_UNIT_CITY] == 3);
+    ofe_game_step(g, 300); /* nobody may delete before tick 299 (OpenFront's cooldown counts from tick -1) */
     OfeIntent del = {0};
     del.type = OFE_INTENT_DELETE_UNIT;
     del.player = 1;
