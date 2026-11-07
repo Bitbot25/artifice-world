@@ -19,10 +19,10 @@
  * as executions (initialised at the end of the tick); alliance changes happen
  * at once, as in TS.
  *
- * Boats: the decision to cross water uses the default engine's boat helpers
- * (ships_transport_source stands for canBuildTransportShip), so games stay
- * exact only until the first transport ship is launched; the ship work is
- * ships.c's, which is made exact separately.
+ * Boats: the route planning is ported (closest shore tiles, other landings,
+ * canBuildTransportShip = ships_transport_source), the launch itself is
+ * ships.c's, which is made exact separately; until then games stay exact only
+ * up to the first transport ship.
  */
 #include "ai_common.h"
 #include "tribe_ts.h"
@@ -140,14 +140,134 @@ static bool launch_boat(OfeGame *g, PlayerId p, TileRef dst, double troops) {
     return g->players.unit_count[p][OFE_UNIT_TRANSPORT_SHIP] > before;
 }
 
+/* The player's border tiles that are shore, in border-set order. */
+static void shore_tiles(const OfeGame *g, PlayerId p, IntVec *out) {
+    const TileSeq *b = &g->players.border_seq[p];
+    out->len = 0;
+    for (int32_t i = 0; i < b->len; i++) {
+        if (b->data[i] >= 0 && map_is_shore(g->map, b->data[i])) IntVec_push(out, b->data[i]);
+    }
+}
+
+/* Stable sort by x coordinate (V8's Array.sort), bottom-up merge sort. */
+static void sort_by_x(const OfeMap *m, int32_t *a, int32_t n) {
+    int32_t *tmp = (int32_t *)ofe_xmalloc((size_t)OFE_MAX(n, 1) * sizeof(int32_t));
+    for (int32_t w = 1; w < n; w *= 2) {
+        for (int32_t lo = 0; lo < n; lo += 2 * w) {
+            int32_t mid = OFE_MIN(lo + w, n), hi = OFE_MIN(lo + 2 * w, n), i = lo, j = mid, k = lo;
+            while (i < mid && j < hi) tmp[k++] = map_x(m, a[j]) < map_x(m, a[i]) ? a[j++] : a[i++];
+            while (i < mid) tmp[k++] = a[i++];
+            while (j < hi) tmp[k++] = a[j++];
+        }
+        memcpy(a, tmp, (size_t)n * sizeof(int32_t));
+    }
+    free(tmp);
+}
+
+/* closestTwoTiles: both lists sorted by x, then one sweep that advances the
+ * pointer with the smaller x; returns the tile of ys (-1 if a list is empty)
+ * of the closest pair seen (manhattan, first one wins ties). */
+static TileRef closest_tile_of_second(const OfeMap *m, const IntVec *xs, const IntVec *ys) {
+    if (xs->len == 0 || ys->len == 0) return -1;
+    int32_t *a = (int32_t *)ofe_xmalloc((size_t)xs->len * sizeof(int32_t));
+    int32_t *b = (int32_t *)ofe_xmalloc((size_t)ys->len * sizeof(int32_t));
+    memcpy(a, xs->data, (size_t)xs->len * sizeof(int32_t));
+    memcpy(b, ys->data, (size_t)ys->len * sizeof(int32_t));
+    sort_by_x(m, a, xs->len);
+    sort_by_x(m, b, ys->len);
+    int32_t i = 0, j = 0, best = INT32_MAX;
+    TileRef result = b[0];
+    while (i < xs->len && j < ys->len) {
+        int32_t d = map_manhattan(m, a[i], b[j]);
+        if (d < best) {
+            best = d;
+            result = b[j];
+        }
+        if (i == xs->len - 1) j++;
+        else if (j == ys->len - 1) i++;
+        else if (map_x(m, a[i]) < map_x(m, b[j])) i++;
+        else j++;
+    }
+    free(a);
+    free(b);
+    return result;
+}
+
+/* routeTo: can a boat leave for this landing, and how far does it sail. */
+static bool boat_route_to(OfeGame *g, PlayerId p, TileRef landing, int32_t *length) {
+    TileRef launch = ships_transport_source(g, p, landing);
+    if (launch < 0) return false;
+    TileRef lands = ships_transport_landing(g, p, landing);
+    *length = map_manhattan(g->map, launch, lands >= 0 ? lands : landing);
+    return true;
+}
+
+/* planBoatRoute: the direct crossing between the two closest shore tiles; if no
+ * boat can sail there, the shortest of a few other landings on their coast
+ * (Medium 1, Hard 2, Impossible 4, Easy none), sampled 32 at a time and at
+ * least 50 apart. Hostile warships (which TS keeps landings clear of) are not
+ * modelled: there are no units in the parity games yet. */
+static bool boat_plan_route(OfeGame *g, PlayerId p, PlayerId target, TileRef *landing_out) {
+    const OfeMap *m = g->map;
+    if (g->cfg.disabled_units & (1u << OFE_UNIT_TRANSPORT_SHIP)) return false;
+    if (g->players.unit_count[p][OFE_UNIT_TRANSPORT_SHIP] >= MAX_TRANSPORT_SHIPS) return false;
+    IntVec ours = {0}, theirs = {0}, candidates = {0}, picked = {0};
+    shore_tiles(g, p, &ours);
+    shore_tiles(g, target, &theirs);
+    TileRef closest = closest_tile_of_second(m, &ours, &theirs);    bool ok = false;
+    int32_t length;
+    if (closest >= 0 && boat_route_to(g, p, closest, &length)) {
+        *landing_out = closest;
+        ok = true;
+    } else if (closest >= 0) {
+        static const int32_t extra_by_difficulty[4] = {0, 1, 2, 4};
+        int32_t count = extra_by_difficulty[OFE_CLAMP(g->cfg.difficulty, 0, 3)];
+        int32_t our_step = OFE_MAX(1, ours.len / 32), their_step = OFE_MAX(1, theirs.len / 32);
+        for (int32_t i = 0; i < theirs.len; i += their_step) { /* candidate landings with their distance */
+            int32_t dist = INT32_MAX;
+            for (int32_t k = 0; k < ours.len; k += our_step) dist = OFE_MIN(dist, map_manhattan(m, ours.data[k], theirs.data[i]));
+            int32_t at = candidates.len;
+            IntVec_push(&candidates, 0);
+            IntVec_push(&candidates, 0);
+            candidates.data[at] = theirs.data[i];
+            candidates.data[at + 1] = dist;
+        }
+        for (int32_t i = 2; i < candidates.len; i += 2) { /* stable insertion sort by distance */
+            int32_t tile = candidates.data[i], dist = candidates.data[i + 1], j = i - 2;
+            while (j >= 0 && candidates.data[j + 1] > dist) {
+                candidates.data[j + 2] = candidates.data[j];
+                candidates.data[j + 3] = candidates.data[j + 1];
+                j -= 2;
+            }
+            candidates.data[j + 2] = tile;
+            candidates.data[j + 3] = dist;
+        }
+        IntVec_push(&picked, closest);
+        for (int32_t i = 0; i < candidates.len; i += 2) {
+            if (picked.len > count) break;
+            bool near = false;
+            for (int32_t k = 0; k < picked.len; k++) near |= map_manhattan(m, picked.data[k], candidates.data[i]) < 50;
+            if (!near) IntVec_push(&picked, candidates.data[i]);
+        }
+        int32_t best_len = INT32_MAX;
+        for (int32_t i = 1; i < picked.len; i++) {
+            if (boat_route_to(g, p, picked.data[i], &length) && length < best_len) {
+                best_len = length;
+                *landing_out = picked.data[i];
+                ok = true;
+            }
+        }
+    }
+    IntVec_free(&ours);
+    IntVec_free(&theirs);
+    IntVec_free(&candidates);
+    IntVec_free(&picked);
+    return ok;
+}
+
 static bool boat_attack_on_player(OfeGame *g, PlayerId p, PlayerId target) {
-    AiCtx c;
-    ai_ctx_begin(&c, g, p);
-    ai_ctx_scan(&c);
     TileRef landing;
-    int32_t len;
-    if (!ai_boat_route(&c, target, &landing, &len)) return false;
-    return launch_boat(g, p, landing, (double)g->players.troops[p] / 5.0);
+    return boat_plan_route(g, p, target, &landing) && launch_boat(g, p, landing, (double)g->players.troops[p] / 5.0);
 }
 
 /* sendBoatAttackToNearbyTerraNullius: every tenth shore border tile, free

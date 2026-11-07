@@ -170,12 +170,18 @@ Facts a new module needs:
   executions from an AI. Tribes have no starting gold, so their troop
   ratios always use the full `maxTroops`; nations with high starting gold use
   `maxTroopsWithoutCities` for expansion.
-- **Tribe boats.** The decision to cross water (`sendBoatAttack`,
-  `sendBoatAttackToNearbyTerraNullius`) calls the default engine's boat
-  helpers and launches a ship at once; the TS decision needs `SpatialQuery`
-  and the ship executions are not exact, so a game is exact only until the
-  first transport ship (see `tribes_first_boat`). The tick of the first boat
-  matched TS in the runs made, so the decision itself is probably right.
+- **Tribe boats.** `sendBoatAttack` (closest shore pair by `closestTwoTiles`,
+  other landings by difficulty) and `sendBoatAttackToNearbyTerraNullius` are
+  ported; `canBuildTransportShip` is `ships_transport_source`, and the ship
+  is launched at once through `ships_launch_transport`, whereas TS creates a
+  `TransportShipExecution` that launches at the end of the tick. Hostile
+  warships (which TS keeps other landings clear of) are not modelled. The
+  first launches in the runs agreed with TS on tick, owner, troops and
+  launch tile; what is left is ship work: unit ids, health, and the landing
+  tile (`find_landing` scans diamond rings, TS `bfsNearest` is a LIFO walk
+  in N, S, W, E order that keeps the first minimum, so equidistant shores
+  differ). Games with tribes are exact up to the first boat
+  (`tribes_first_boat`); the other tribe scenarios switch transport ships off.
 - **Digest harness.** TS adds tribe players on tick 1, so `trace_c.py` hides
   tribe rows after tick 0; embargoes are read for pairs with a non-tribe.
 - **Not in TS order yet:** `units_tick`, `doomsday_tick` and (nation) `ai_tick` run after

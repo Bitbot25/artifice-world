@@ -123,6 +123,8 @@ int32_t ships_water_component(OfeGame *g, TileRef tile);
 bool ships_touches_water(OfeGame *g, TileRef tile, int32_t comp);
 /* Shore tile of p from which a boat could reach dst, or -1. */
 TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst);
+/* The shore tile a boat for dst would land on (targetTransportTile), or -1. */
+TileRef ships_transport_landing(OfeGame *g, PlayerId p, TileRef dst);
 /* Fires a shell from `from` at the unit in target_slot (warships and
  * defense posts use it). Returns the shell id or -1. */
 UnitId ships_fire_shell(OfeGame *g, PlayerId owner, TileRef from, int32_t target_slot, int32_t damage);
