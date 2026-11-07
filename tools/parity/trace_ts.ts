@@ -219,12 +219,24 @@ async function main() {
     }
     at.sort(cmpRows);
     al.sort(cmpRows);
-    const lists = { pl, un, at, al };
+    const ex = game
+      .allPlayers()
+      .map((p: any) => {
+        const tg = p.targets();
+        return [p.smallID(), p.isDisconnected() ? 1 : 0, p.getTraitorRemainingTicks(), tg.length ? tg[tg.length - 1].smallID() : 0];
+      })
+      .sort(cmpRows);
+    const w = game.getWinner();
+    ex.unshift([0, w === null ? 0 : typeof w === "string" ? -1 : (w as any).smallID(), 0, 0]);
+    const em: number[][] = [];
+    for (const p of game.allPlayers()) for (const e of p.getEmbargoes()) em.push([p.smallID(), e.target.smallID()]);
+    em.sort(cmpRows);
+    const lists = { pl, un, at, al, ex, em };
     const h: Record<string, number> = {
       own: tileHash(n, (t) => map.ownerID(t)),
       fall: tileHash(n, (t) => (game.hasFallout(t) ? 1 : 0)),
     };
-    for (const k of ["pl", "un", "at", "al"]) h[k] = crc32(JSON.stringify((lists as any)[k]));
+    for (const k of ["pl", "un", "at", "al", "ex", "em"]) h[k] = crc32(JSON.stringify((lists as any)[k]));
     return { lists, h };
   };
 

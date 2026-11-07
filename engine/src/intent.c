@@ -31,6 +31,29 @@ void game_issue(OfeGame *g, const OfeIntent *in) {
     if (player_valid(g, in->player)) intent_apply_one(g, in);
 }
 
+/* Players an embargo-all touches: alive, not a tribe, not on the sender's
+ * team and not allied with it. */
+static bool embargo_all_eligible(const OfeGame *g, PlayerId p, PlayerId o) {
+    return o != p && player_alive(g, o) && g->players.type[o] != OFE_PLAYER_BOT && !player_same_team(g, p, o) &&
+           !player_allied(g, p, o);
+}
+
+/* EmbargoAllExecution: needs someone eligible and the 10 s cooldown (OpenFront
+ * counts it from tick -1, so it also blocks the first 10 s). */
+static void embargo_all(OfeGame *g, PlayerId p, bool start) {
+    PlayerTable *pl = &g->players;
+    if (g->tick - pl->embargo_all_tick[p] < EMBARGO_ALL_COOLDOWN) return;
+    bool any = false;
+    for (PlayerId o = 1; o < pl->count && !any; o++) any = embargo_all_eligible(g, p, o);
+    if (!any) return;
+    for (PlayerId o = 1; o < pl->count; o++) {
+        if (!embargo_all_eligible(g, p, o)) continue;
+        if (start && !player_embargoed(g, p, o)) player_add_embargo(g, p, o, false);
+        else if (!start && player_embargoed(g, p, o)) player_stop_embargo(g, p, o);
+    }
+    pl->embargo_all_tick[p] = g->tick;
+}
+
 static bool valid_tile(const OfeGame *g, int32_t t) { return t >= 0 && t < g->map->num_tiles; }
 
 void intent_apply_one(OfeGame *g, const OfeIntent *in) {
@@ -104,16 +127,7 @@ void intent_apply_one(OfeGame *g, const OfeIntent *in) {
         else player_stop_embargo(g, p, in->target);
         break;
     case OFE_INTENT_EMBARGO_ALL:
-        if (pl->embargo_all_tick[p] >= 0 && g->tick - pl->embargo_all_tick[p] < EMBARGO_ALL_COOLDOWN) return;
-        pl->embargo_all_tick[p] = g->tick;
-        for (PlayerId o = 1; o < pl->count; o++) {
-            if (o == p || !player_alive(g, o)) continue;
-            if (in->flags & 1) {
-                if (!player_friendly(g, p, o)) player_add_embargo(g, p, o, false);
-            } else {
-                player_stop_embargo(g, p, o);
-            }
-        }
+        embargo_all(g, p, (in->flags & 1) != 0);
         break;
     case OFE_INTENT_MOVE_WARSHIP:
         if (valid_tile(g, in->tile)) ships_move_warship(g, p, in->target, in->tile);

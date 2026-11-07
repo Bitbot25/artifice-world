@@ -84,6 +84,145 @@ static inline uint64_t rng_derive(uint64_t seed, uint64_t tag) {
     return rng_next(&s);
 }
 
+/* ---- TsRandom: OpenFront's PseudoRandom --------------------------------
+ * sfc32 seeded through splitmix32 with 12 warm-up draws, exactly as
+ * engine-lib/PseudoRandom.ts. All parity random streams use it (see
+ * docs/ts_parity.md); it is cheap, so it is compiled into every build.
+ */
+typedef struct TsRandom {
+    uint32_t s0, s1, s2, s3;
+} TsRandom;
+
+static inline double ts_rand_next(TsRandom *r) {
+    uint32_t t = r->s0 + r->s1 + r->s3;
+    r->s3 += 1;
+    r->s0 = r->s1 ^ (r->s1 >> 9);
+    r->s1 = r->s2 + (r->s2 << 3);
+    r->s2 = (r->s2 << 21) | (r->s2 >> 11);
+    r->s2 += t;
+    return (double)t / 4294967296.0;
+}
+
+/* `seed` is a JS number: only its low 32 bits matter (seed | 0). */
+static inline void ts_rand_init(TsRandom *r, int64_t seed) {
+    uint32_t h = (uint32_t)seed;
+    uint32_t w[4];
+    for (int i = 0; i < 4; i++) {
+        h += 0x9e3779b9u;
+        uint32_t t = h ^ (h >> 16);
+        t *= 0x21f0aaadu;
+        t ^= t >> 15;
+        t *= 0x735a2d97u;
+        w[i] = t ^ (t >> 15);
+    }
+    r->s0 = w[0], r->s1 = w[1], r->s2 = w[2], r->s3 = w[3];
+    for (int i = 0; i < 12; i++) ts_rand_next(r);
+}
+
+/* Integer in [lo, hi): floor(next() * (floor(hi) - floor(lo))) + floor(lo). */
+static inline double ts_rand_int(TsRandom *r, double lo, double hi) {
+    lo = floor(lo);
+    hi = floor(hi);
+    return floor(ts_rand_next(r) * (hi - lo)) + lo;
+}
+static inline double ts_rand_float(TsRandom *r, double lo, double hi) { return ts_rand_next(r) * (hi - lo) + lo; }
+static inline bool ts_rand_chance(TsRandom *r, double odds) { return ts_rand_int(r, 0, odds) == 0; }
+/* Index into an array of n elements (randElement). */
+static inline int32_t ts_rand_index(TsRandom *r, int32_t n) { return (int32_t)ts_rand_int(r, 0, n); }
+/* Fisher-Yates in place, like shuffleArray (which shuffles a copy). */
+static inline void ts_rand_shuffle(TsRandom *r, int32_t *a, int32_t n) {
+    for (int32_t i = n - 1; i > 0; i--) {
+        int32_t j = (int32_t)ts_rand_int(r, 0, i + 1);
+        int32_t t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+    }
+}
+/* nextID(): 8 base-36 characters of floor(next() * 36^8). out has room for 9. */
+static inline void ts_rand_id(TsRandom *r, char out[9]) {
+    uint64_t v = (uint64_t)floor(ts_rand_next(r) * 2821109907456.0);
+    for (int i = 7; i >= 0; i--) {
+        out[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[v % 36];
+        v /= 36;
+    }
+    out[8] = 0;
+}
+/* simpleHash(str) of engine-lib/Util.ts: 31-multiplier hash, absolute value. */
+static inline int64_t ts_simple_hash(const char *s) {
+    int32_t h = 0;
+    for (; *s; s++) h = (int32_t)((uint32_t)h * 31u + (uint32_t)(uint8_t)*s);
+    return h < 0 ? -(int64_t)h : (int64_t)h;
+}
+
+/* ---- DetMath: OpenFront's deterministic exp / log / pow -----------------
+ * engine-lib/DetMath.ts. Plain + - * / only, so the result is bit-identical
+ * to the TS engine (this must not be compiled with FMA contraction;
+ * -std=c99 already turns it off).
+ */
+static inline double det_pow2(int n) {
+    if (n > 1023) return INFINITY;
+    if (n < -1022) return 0;
+    uint64_t bits = (uint64_t)(n + 1023) << 52;
+    double d;
+    memcpy(&d, &bits, sizeof d);
+    return d;
+}
+
+static inline double det_exp(double x) {
+    if (x > 709) return INFINITY;
+    if (x < -708) return 0;
+    const double LN2 = 0.6931471805599453, LOG2E = 1.4426950408889634;
+    double n = floor(x * LOG2E + 0.5);
+    double r = x - n * LN2;
+    double p = 1 + r * (1 + r * (1.0 / 2 + r * (1.0 / 6 + r * (1.0 / 24 + r * (1.0 / 120 + r * (1.0 / 720 +
+                   r * (1.0 / 5040 + r * (1.0 / 40320))))))));
+    return p * det_pow2((int)n);
+}
+
+static inline double det_log(double x) {
+    if (x <= 0) return x == 0 ? -INFINITY : NAN;
+    const double LN2 = 0.6931471805599453, SQRT2 = 1.4142135623730951;
+    int e = 0;
+    if (x < 2.2250738585072014e-308) {
+        x *= 18014398509481984.0; /* 2^54 */
+        e = -54;
+    }
+    uint64_t bits;
+    memcpy(&bits, &x, sizeof bits);
+    e += (int)((bits >> 52) & 0x7ff) - 1023;
+    bits = (bits & 0x000fffffffffffffull) | 0x3ff0000000000000ull;
+    double m;
+    memcpy(&m, &bits, sizeof m);
+    if (m > SQRT2) {
+        m *= 0.5;
+        e += 1;
+    }
+    double s = (m - 1) / (m + 1);
+    double z = s * s;
+    double series = 1 + z * (1.0 / 3 + z * (1.0 / 5 + z * (1.0 / 7 + z * (1.0 / 9 + z * (1.0 / 11 + z * (1.0 / 13))))));
+    return e * LN2 + 2 * s * series;
+}
+
+/* x ** y for x >= 0. */
+static inline double det_pow(double x, double y) {
+    if (y == 0 || x == 1) return 1;
+    if (x == 0) return y > 0 ? 0 : INFINITY;
+    if (x < 0) return NAN;
+    return det_exp(y * det_log(x));
+}
+
+/* exp / log / pow of the engine's formulas: OpenFront's DetMath in the parity
+ * build (bit-exact), libm in the default build (faster, ~1e-8 apart). */
+#if OFE_TS_PARITY
+#define ofe_exp det_exp
+#define ofe_log det_log
+#define ofe_pow det_pow
+#else
+#define ofe_exp exp
+#define ofe_log log
+#define ofe_pow pow
+#endif
+
 /* ---- Tile min-heap (priority float, tile int32) ------------------------- */
 typedef struct TileHeap {
     float *pri;
@@ -255,7 +394,7 @@ static inline void intset_copy(IntSet *dst, const IntSet *src) {
 
 /* ---- Math ---------------------------------------------------------------- */
 static inline double sigmoid(double value, double decay_rate, double midpoint) {
-    return 1.0 / (1.0 + exp(-decay_rate * (value - midpoint)));
+    return 1.0 / (1.0 + ofe_exp(-decay_rate * (value - midpoint)));
 }
 
 static inline uint64_t hash_mix(uint64_t h, uint64_t x) {

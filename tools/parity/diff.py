@@ -74,7 +74,7 @@ def show_rows(name: str, ts_rows: list, c_rows: list, limit: int = 12):
 
 
 def explain(t: int, ts: dict, c: dict):
-    for comp in ("pl", "un", "at", "al"):
+    for comp in ("pl", "un", "at", "al", "ex", "em"):
         if ts["h"][comp] != c["h"][comp]:
             show_rows(comp, ts["d"][comp], c["d"][comp])
     if ts["h"]["own"] != c["h"]["own"]:
@@ -101,7 +101,8 @@ def main():
     if a.ticks:
         sc["ticks"] = a.ticks
     OUT.mkdir(exist_ok=True)
-    key = hashlib.sha1((json.dumps(sc, sort_keys=True) + of_commit(openfront_dir())).encode()).hexdigest()[:12]
+    tracer = (HERE / "trace_ts.ts").read_text() + (HERE / "digest.py").read_text()
+    key = hashlib.sha1((json.dumps(sc, sort_keys=True) + of_commit(openfront_dir()) + tracer).encode()).hexdigest()[:12]
     name = sc.get("name", Path(a.scenario).stem)
     scen_path = OUT / f"{name}-{key}.json"
     scen_path.write_text(json.dumps(sc))

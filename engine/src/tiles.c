@@ -9,6 +9,10 @@
  * Border lists: players.border[p] holds every border tile of p, and
  * TileChunk.border_pos holds each tile's index in that list, so adding and
  * removing is O(1) (swap-remove).
+ *
+ * The parity build also keeps TileSeq, insertion-ordered sets of each player's
+ * tiles and border tiles with JS Set semantics: attacks, enclave removal and
+ * dead-defender cleanup iterate them in TS's order.
  */
 #include "internal.h"
 
@@ -17,6 +21,10 @@ static TileChunk *chunk_new_blank(void) {
     c->refcount = 1;
     memset(c->state, 0, sizeof(c->state));
     memset(c->border_pos, 0xff, sizeof(c->border_pos));
+#if OFE_TS_PARITY
+    memset(c->tiles_seq_pos, 0xff, sizeof(c->tiles_seq_pos));
+    memset(c->border_seq_pos, 0xff, sizeof(c->border_seq_pos));
+#endif
     return c;
 }
 
@@ -64,6 +72,71 @@ TileChunk *tiles_chunk_mut(TileStore *ts, TileRef t) {
     return copy;
 }
 
+#if OFE_TS_PARITY
+/* ---- TileSeq: insertion-ordered tile sets (TS TileSet semantics) --------- */
+
+void tileseq_free(TileSeq *s) {
+    free(s->data);
+    memset(s, 0, sizeof(*s));
+}
+
+void tileseq_copy(TileSeq *dst, const TileSeq *src) {
+    if (dst->cap < src->len) {
+        free(dst->data);
+        dst->cap = OFE_MAX(src->cap, 16);
+        dst->data = (int32_t *)ofe_xmalloc((size_t)dst->cap * sizeof(int32_t));
+    }
+    if (src->len) memcpy(dst->data, src->data, (size_t)src->len * sizeof(int32_t));
+    dst->len = src->len;
+    dst->live = src->live;
+}
+
+static inline int32_t *seq_pos_ptr(OfeGame *g, TileRef t, bool border) {
+    TileChunk *c = tiles_chunk_mut(&g->tiles, t);
+    return (border ? c->border_seq_pos : c->tiles_seq_pos) + (t & TILE_CHUNK_MASK);
+}
+
+/* Drops tombstones, keeping order (TileSet.compact); never while iterating. */
+static void seq_compact(OfeGame *g, TileSeq *s, bool border) {
+    int32_t n = 0;
+    for (int32_t i = 0; i < s->len; i++) {
+        TileRef t = s->data[i];
+        if (t < 0) continue;
+        s->data[n] = t;
+        *seq_pos_ptr(g, t, border) = n++;
+    }
+    s->len = n;
+}
+
+static void seq_add(OfeGame *g, TileSeq *s, TileRef t, bool border) {
+    if (*seq_pos_ptr(g, t, border) >= 0) return;
+    if (s->len == s->cap) {
+        if (g->seq_iter == 0 && s->len >= 16 && s->len - s->live >= s->live) {
+            seq_compact(g, s, border);
+        } else {
+            s->cap = s->cap ? s->cap * 2 : 16;
+            s->data = (int32_t *)ofe_xrealloc(s->data, (size_t)s->cap * sizeof(int32_t));
+        }
+    }
+    *seq_pos_ptr(g, t, border) = s->len;
+    s->data[s->len++] = t;
+    s->live++;
+}
+
+static void seq_remove(OfeGame *g, TileSeq *s, TileRef t, bool border) {
+    int32_t *pos = seq_pos_ptr(g, t, border);
+    if (*pos < 0) return;
+    s->data[*pos] = -1;
+    *pos = -1;
+    s->live--;
+}
+#define SEQ_ADD(g, s, t, border) seq_add(g, s, t, border)
+#define SEQ_REMOVE(g, s, t, border) seq_remove(g, s, t, border)
+#else
+#define SEQ_ADD(g, s, t, border) ((void)0)
+#define SEQ_REMOVE(g, s, t, border) ((void)0)
+#endif
+
 static inline void set_border_pos(OfeGame *g, TileRef t, int32_t pos) {
     tiles_chunk_mut(&g->tiles, t)->border_pos[t & TILE_CHUNK_MASK] = pos;
 }
@@ -72,6 +145,7 @@ static void border_add(OfeGame *g, PlayerId p, TileRef t) {
     IntVec *b = &g->players.border[p];
     set_border_pos(g, t, b->len);
     IntVec_push(b, t);
+    SEQ_ADD(g, &g->players.border_seq[p], t, true);
 }
 
 static void border_remove(OfeGame *g, PlayerId p, TileRef t) {
@@ -83,6 +157,7 @@ static void border_remove(OfeGame *g, PlayerId p, TileRef t) {
         set_border_pos(g, last, pos);
     }
     set_border_pos(g, t, -1);
+    SEQ_REMOVE(g, &g->players.border_seq[p], t, true);
 }
 
 /* An owned tile is a border tile if a 4-neighbour has another owner. */
@@ -114,6 +189,7 @@ void tile_set_owner(OfeGame *g, TileRef t, PlayerId owner) {
     PlayerTable *pl = &g->players;
 
     if (old != 0) {
+        SEQ_REMOVE(g, &pl->tiles_seq[old], t, false); /* TS: previousOwner._tiles.delete */
         if (tile_border_pos_raw(&g->tiles, t) >= 0) border_remove(g, old, t);
         pl->num_tiles[old]--;
         pl->last_tile_change[old] = g->tick;
@@ -129,6 +205,7 @@ void tile_set_owner(OfeGame *g, TileRef t, PlayerId owner) {
     *st = (uint16_t)((*st & ~TS_OWNER_MASK) | (owner & TS_OWNER_MASK));
 
     if (owner != 0) {
+        SEQ_ADD(g, &pl->tiles_seq[owner], t, false); /* TS: owner._tiles.add */
         pl->num_tiles[owner]++;
         pl->last_tile_change[owner] = g->tick;
     }

@@ -44,6 +44,15 @@ TS traces are cached in `out/` by scenario contents and OpenFront commit;
   `unit_type` (C unit name), `amount`, `flag` (start/stop, rocket up,
   disconnected). `cancel_attack` names the attack by its `target`.
 
+## Digest extras and generated scenarios
+
+Besides players, units, attacks and alliances the digest holds `ex` (per player:
+disconnected, traitor ticks left, active target; first row = the winner) and `em`
+(embargoes), so the social intents are checked too. `make_scenarios.py`
+regenerates `war_12humans.json` and `social_donations.json` by playing them on
+the C parity build (so attacks hit real neighbours); `win_check.json` is
+`core_humans` with a 2% win bar.
+
 ## Path code (nukes, SAM missiles, shells, rails, trains)
 
 `air_rail_paths.py` compares `engine/src/paths_ts.c` with the TS pathfinders

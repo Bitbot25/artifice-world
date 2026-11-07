@@ -18,6 +18,10 @@ static void player_table_alloc(PlayerTable *t, int32_t cap) {
     PLAYER_COLUMNS(ALLOC_COLUMN)
     t->border = (IntVec *)ofe_xcalloc((size_t)cap, sizeof(IntVec));
     t->name = (char(*)[48])ofe_xcalloc((size_t)cap, 48);
+#if OFE_TS_PARITY
+    t->tiles_seq = (TileSeq *)ofe_xcalloc((size_t)cap, sizeof(TileSeq));
+    t->border_seq = (TileSeq *)ofe_xcalloc((size_t)cap, sizeof(TileSeq));
+#endif
 }
 
 static void player_table_free(PlayerTable *t) {
@@ -25,6 +29,14 @@ static void player_table_free(PlayerTable *t) {
     for (int32_t i = 0; i < t->cap; i++) IntVec_free(&t->border[i]);
     free(t->border);
     free(t->name);
+#if OFE_TS_PARITY
+    for (int32_t i = 0; i < t->cap; i++) {
+        tileseq_free(&t->tiles_seq[i]);
+        tileseq_free(&t->border_seq[i]);
+    }
+    free(t->tiles_seq);
+    free(t->border_seq);
+#endif
     memset(t, 0, sizeof(*t));
 }
 
@@ -37,6 +49,12 @@ static void player_table_copy(PlayerTable *dst, const PlayerTable *src) {
     PLAYER_COLUMNS(COPY_COLUMN)
     for (int32_t i = 0; i < src->cap; i++) IntVec_copy(&dst->border[i], &src->border[i]);
     memcpy(dst->name, src->name, (size_t)src->cap * 48);
+#if OFE_TS_PARITY
+    for (int32_t i = 0; i < src->cap; i++) {
+        tileseq_copy(&dst->tiles_seq[i], &src->tiles_seq[i]);
+        tileseq_copy(&dst->border_seq[i], &src->border_seq[i]);
+    }
+#endif
 }
 
 static void attack_table_free(AttackTable *t) {
@@ -143,6 +161,27 @@ static PlayerId add_player(OfeGame *g, int type, const char *name, int16_t team,
     return p;
 }
 
+/* OpenFront's player ids are 8-character strings drawn, humans first and then
+ * nations, from PseudoRandom(simpleHash(gameID)). Only their hash is observable
+ * (cluster-check offsets, spawn random streams). */
+static void game_assign_ids(OfeGame *g) {
+    char fallback[24];
+    const char *id = g->cfg.game_id;
+    if (!id[0]) {
+        snprintf(fallback, sizeof fallback, "S%llx", (unsigned long long)g->seed);
+        id = fallback;
+    }
+    g->id_seed = ts_simple_hash(id);
+    TsRandom rnd;
+    ts_rand_init(&rnd, g->id_seed);
+    char pid[9];
+    for (PlayerId p = 1; p < g->players.count; p++) {
+        if (g->players.type[p] == OFE_PLAYER_BOT) continue; /* tribes draw elsewhere */
+        ts_rand_id(&rnd, pid);
+        g->players.id_hash[p] = (uint32_t)ts_simple_hash(pid);
+    }
+}
+
 OfeGame *ofe_game_create(OfeMap *map, const OfeConfig *config, uint64_t seed) {
     if (!map) return NULL;
     OfeGame *g = (OfeGame *)ofe_xcalloc(1, sizeof(OfeGame));
@@ -186,6 +225,8 @@ OfeGame *ofe_game_create(OfeMap *map, const OfeConfig *config, uint64_t seed) {
         add_player(g, OFE_PLAYER_BOT, name, -1, -1);
     }
 
+    game_assign_ids(g);
+
     /* Relation rows for AI-driven players. */
     int32_t rows = 0;
     for (PlayerId p = 1; p < g->players.count; p++) {
@@ -222,6 +263,10 @@ void ofe_game_destroy(OfeGame *g) {
         ai_state_free(g);
         free(g->sub);
     }
+#if OFE_TS_PARITY
+    cluster_ts_free(g);
+    ts_execs_free(g);
+#endif
     tiles_free(&g->tiles);
     player_table_free(&g->players);
     attack_table_free(&g->attacks);
@@ -230,6 +275,7 @@ void ofe_game_destroy(OfeGame *g) {
     AllianceRequestVec_free(&g->alliance_requests);
     AllianceRequestVec_free(&g->past_requests);
     EmbargoVec_free(&g->embargoes);
+    DonationVec_free(&g->donations);
     IntentVec_free(&g->pending_intents);
     EventVec_free(&g->events);
     IntVec_free(&g->scratch_a);
@@ -255,6 +301,7 @@ void ofe_game_copy_into(OfeGame *dst, const OfeGame *src) {
     dst->seed = src->seed;
     dst->rng = src->rng;
     dst->tick = src->tick;
+    dst->id_seed = src->id_seed;
     dst->spawn_phase_ticks = src->spawn_phase_ticks;
     dst->start_tick = src->start_tick;
     dst->winner = src->winner;
@@ -273,6 +320,7 @@ void ofe_game_copy_into(OfeGame *dst, const OfeGame *src) {
     AllianceRequestVec_copy(&dst->alliance_requests, &src->alliance_requests);
     AllianceRequestVec_copy(&dst->past_requests, &src->past_requests);
     EmbargoVec_copy(&dst->embargoes, &src->embargoes);
+    DonationVec_copy(&dst->donations, &src->donations);
     IntentVec_copy(&dst->pending_intents, &src->pending_intents);
     EventVec_copy(&dst->events, &src->events);
 
@@ -281,6 +329,9 @@ void ofe_game_copy_into(OfeGame *dst, const OfeGame *src) {
     memcpy(dst->relations, src->relations, rel * sizeof(float));
     dst->num_relation_rows = src->num_relation_rows;
 
+#if OFE_TS_PARITY
+    ts_execs_copy(dst, src);
+#endif
     structures_state_copy(dst, src);
     ships_state_copy(dst, src);
     nukes_state_copy(dst, src);
@@ -303,12 +354,16 @@ OfeGame *ofe_game_clone(const OfeGame *src) {
 /* Tick loop                                                                 */
 /* ======================================================================== */
 
-/* One tick, in OpenFront's order: the spawn timer (or, after the spawn
+/* One tick (the parity build runs TS's execution list instead, exec_ts.c), in OpenFront's order: the spawn timer (or, after the spawn
  * phase, every running system), then new actions. Intents (and AI actions) take effect at the end
  * of the tick, so a new attack first conquers on the next tick and troop
  * growth happens before an attack's troops are taken, as in OpenFront,
  * where executions created during a tick are initialised after it. */
 static void game_tick(OfeGame *g) {
+#if OFE_TS_PARITY
+    game_tick_ts(g); /* TS's execution list instead of per-system batches */
+    return;
+#endif
     if (g->start_tick < 0) {
         /* Systems first run on the tick after the phase ends: OpenFront
          * initialises player and attack executions after that tick. */
@@ -328,7 +383,8 @@ static void game_tick(OfeGame *g) {
 
 int32_t ofe_game_step(OfeGame *g, int32_t ticks) {
     int32_t ran = 0;
-    while (ran < ticks && !g->game_over) {
+    /* TS keeps ticking after a winner is declared; so does the parity build. */
+    while (ran < ticks && (OFE_TS_PARITY || !g->game_over)) {
         game_tick(g);
         ran++;
     }
@@ -458,6 +514,8 @@ static void fill_player_info(const OfeGame *g, PlayerId p, const PlayerSums *sum
     memcpy(out->unit_levels, pl->unit_levels[p], sizeof(out->unit_levels));
     out->traitor_ticks_left = player_is_traitor(g, p) ? 300 - (g->tick - pl->traitor_tick[p]) : 0;
     out->doomsday_ticks = pl->doomsday_tick[p] >= 0 ? g->tick - pl->doomsday_tick[p] : 0;
+    bool targeting = pl->last_target_tick[p] >= 0 && g->tick - pl->last_target_tick[p] < 100; /* targetDuration */
+    out->target = targeting ? pl->target[p] : 0;
 }
 
 int32_t ofe_game_player_info(const OfeGame *g, int32_t p, OfePlayerInfo *out) {

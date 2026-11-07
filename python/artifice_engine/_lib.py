@@ -206,7 +206,8 @@ class PlayerInfo(C.Structure):
         ("unit_levels", i32 * UNIT_TYPE_COUNT),
         ("traitor_ticks_left", i32),
         ("doomsday_ticks", i32),
-        ("reserved", i32 * 4),
+        ("target", i32),
+        ("reserved", i32 * 3),
     ]
 
 
