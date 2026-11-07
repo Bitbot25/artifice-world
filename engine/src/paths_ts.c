@@ -1176,6 +1176,18 @@ void ts_rail_net_structure_done(TsRailNet *n, int32_t unit) {
         static const int32_t types[3] = {TS_CITY, TS_PORT, TS_FACTORY};
         NearbyVec nbs = {0};
         nearby_units(n, u->tile, STATION_MAX_RANGE, types, 3, &nbs);
+        /* Ports run PortExecution every tick: the tick the factory appears, every
+         * station-less port within range already sees it (its execution runs
+         * before the new FactoryExecution's first tick) and starts its station
+         * first, in port creation order. */
+        for (int32_t p = 0; p < n->units.len; p++) {
+            NetUnit *pu = &n->units.data[p];
+            if (p == unit || pu->type != TS_PORT || pu->has_flag) continue;
+            if (has_unit_nearby(n, pu->tile, STATION_MAX_RANGE, TS_FACTORY)) {
+                pu->has_flag = true;
+                IntVec_push(&todo, p);
+            }
+        }
         /* addExecution(new TrainStationExecution(factory, true)) sets the flag at once */
         u->has_flag = true;
         IntVec_push(&todo, unit);
@@ -1338,7 +1350,7 @@ struct TsTrain {
     IntVec used;
     int32_t engine;
     int32_t cars[TS_TRAIN_MAX_UNITS];
-    bool active;
+    bool active, stuck;
 };
 
 TsTrain *ts_train_new(const TsRailNet *n, const int32_t *stations, int32_t ns, int32_t num_cars) {
@@ -1352,15 +1364,22 @@ TsTrain *ts_train_new(const TsRailNet *n, const int32_t *stations, int32_t ns, i
     for (int32_t i = 0; i + 1 < ns; i++) {
         if (!ts_rail_net_oriented(n, stations[i], stations[i + 1], &seg)) {
             IntVec_free(&seg);
-            ts_train_free(t);
-            return NULL;
+            if (i == 0) { /* init deactivates before any unit exists */
+                ts_train_free(t);
+                return NULL;
+            }
+            /* TS builds the units first and then deactivates the execution on a missing
+             * segment: the units stay on the start tile for good. */
+            t->stuck = true;
+            t->active = false;
+            break;
         }
         if (i == 0) IntVec_copy(&t->rail, &seg);
         for (int32_t k = 0; k < seg.len; k++) IntVec_push(&t->path, seg.data[k]);
     }
     IntVec_free(&seg);
     int32_t start = ts_rail_net_station_tile(n, stations[0]);
-    if (t->path.len == 0 || t->path.data[0] != start) {
+    if (!t->stuck && (t->path.len == 0 || t->path.data[0] != start)) {
         IntVec_push(&t->path, 0);
         memmove(t->path.data + 1, t->path.data, (size_t)(t->path.len - 1) * 4);
         t->path.data[0] = start;
@@ -1398,8 +1417,16 @@ static void train_save_traversed(TsTrain *t, int32_t from, int32_t speed) {
     }
 }
 
+bool ts_train_stuck(const TsTrain *t) { return t->stuck; }
+
 void ts_train_tick(TsTrain *t, bool destination_tradable, TsTrainStep *out) {
     out->moved = false;
+    if (t->stuck) { /* inactive execution: never ticked, units remain */
+        out->active_after = true;
+        out->stop_station = -1;
+        out->num_cars = t->num_cars;
+        return;
+    }
     out->stop_station = -1;
     out->num_cars = t->num_cars;
     int32_t tile = 0;

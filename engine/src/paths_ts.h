@@ -211,6 +211,10 @@ typedef struct TsTrain TsTrain;
  * would deactivate (route too short or a segment without railroad). */
 TsTrain *ts_train_new(const TsRailNet *n, const int32_t *stations, int32_t num_stations, int32_t num_cars);
 void ts_train_free(TsTrain *t);
+/* True when TS created the train units but then deactivated the execution (a later
+ * segment of the route has no railroad, e.g. after a lost railroadByNeighbor entry):
+ * the units stay on the start tile forever and ts_train_tick() never moves them. */
+bool ts_train_stuck(const TsTrain *t);
 
 #define TS_TRAIN_MAX_UNITS 64
 typedef struct TsTrainStep {

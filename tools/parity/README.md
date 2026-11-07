@@ -43,3 +43,20 @@ TS traces are cached in `out/` by scenario contents and OpenFront commit;
   `troops` (absolute; omitted = the engine default), `unit` (TS unit id),
   `unit_type` (C unit name), `amount`, `flag` (start/stop, rocket up,
   disconnected). `cancel_attack` names the attack by its `target`.
+
+## Path code (nukes, SAM missiles, shells, rails, trains)
+
+`air_rail_paths.py` compares `engine/src/paths_ts.c` with the TS pathfinders
+query by query (`air_rail_paths.ts` runs the TS side on a real game,
+`air_rail_paths_c.c` the C side; both print the same text lines):
+
+```bash
+make parity && export OPENFRONT_DIR=<openfront checkout>
+python3 tools/parity/air_rail_paths.py --maps world:1,world:0,iceland:1 --n 3000   # name:compact
+```
+
+Kinds: parabola (full path, stepped tiles per tick, current index), MIRV speed,
+air (path and stepper calls with fixed or moving targets, any seed), rail tiles,
+and rail networks (structures placed one by one through the real
+Factory/City/Port executions: railroads and their tiles, station neighbours,
+cluster trade-station order, station paths, train and car tiles per tick).

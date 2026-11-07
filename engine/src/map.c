@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #include "internal.h"
+#include "paths_ts.h"
 
 /* Map caches live outside OfeMap's public fields so map.c owns locking. */
 typedef struct MapCaches {
@@ -291,6 +292,16 @@ OfeMap *ofe_map_load(const char *map_dir, int compact) {
     }
     map_derive(m);
     map_derive_mini(m);
+#if OFE_TS_PARITY
+    /* TS: the mini map is OpenFront's own map4x.bin / map16x.bin, not a 2x2 reduction. */
+    {
+        uint8_t *mt = ts_mini_terrain_load(map_dir, compact, w, h);
+        if (mt) {
+            free(m->mini_terrain);
+            m->mini_terrain = mt;
+        }
+    }
+#endif
 
     /* Nation coordinates are given at full size; compact maps halve them. */
     for (int32_t i = 0; i < num_nations; i++) {

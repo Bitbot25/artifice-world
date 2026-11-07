@@ -20,7 +20,7 @@ SRC  := $(wildcard engine/src/*.c)
 OBJ  := $(patsubst engine/src/%.c,$(BUILD)/obj/%.o,$(SRC))
 DEPS := $(OBJ:.o=.d)
 
-.PHONY: all clean test bench debug ctest pytest parity parity-check
+.PHONY: all clean test bench debug ctest pytest parity parity-check parity-paths
 
 all: $(BUILD)/libofe.so $(BUILD)/libofe.a
 
@@ -70,6 +70,10 @@ parity:
 # (needs OPENFRONT_DIR, see tools/parity/README.md).
 parity-check: parity
 	@for s in tools/parity/scenarios/*.json; do python3 tools/parity/diff.py $$s || exit 1; done
+
+# Missile / air / rail path code against the TS pathfinders (needs OPENFRONT_DIR).
+parity-paths: parity
+	python3 tools/parity/air_rail_paths.py
 
 clean:
 	rm -rf build build-debug build-parity
