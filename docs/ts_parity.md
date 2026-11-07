@@ -93,8 +93,8 @@ respect that.
 Scenarios that match on every tick (`make parity-check`): `core_humans` (1500
 ticks), `war_12humans` (6000: wars, cancelled attacks, alliances that expire,
 are extended or broken, wiped-out players), `social_donations` (3000:
-donations, embargoes, targets, disconnects), `win_check` (900). Humans only so
-far: no nations, tribes, units, ships or nukes.
+donations, embargoes, targets, disconnects), `win_check` (900). Units: `units_structures` (4500), `units_nukes` (6200), `units_sam` (4200),
+made by `make_unit_scenarios.py`. Humans only so far: no nations, tribes, ships.
 
 Where the parity code lives:
 
@@ -126,12 +126,25 @@ Facts a new module needs:
   sees `retreated`), donation. Anything not active during the spawn phase waits
   for it to end and is initialised in creation order at the end of its last tick.
 - **Ids.** Attack ids are C ids in the parity build (cancel intents resolve the
-  attack by target in the harness). Unit ids are still C handles: wire up TS's
-  global `nextUnitID` when units join the parity tick (`units.c`).
+  attack by target in the harness). Unit ids are TS's global `nextUnitID` in the
+  parity build (`uid` column, `unit_create` assigns them in TS build order; ships
+  and trains consume ids too, but are not in TS order yet).
 - **Numbers.** `ofe_pow/exp/log` are OpenFront's DetMath in the parity build
   and libm in the default build; `sigmoid` uses them too. Everything else uses
   doubles in TS order. `TsRandom` is unconditional in `util.h`.
-- **Not in TS order yet:** `units_tick`, `doomsday_tick` and `ai_tick` run after
+- **Units (units_ts.c).** Construction, upgrade, delete, silo, SAM, SAM missile,
+  nuke and MIRV executions are in the exec list with TS's init/tick split (a nuke
+  is placed 2 ticks after its intent, a structure 1 tick after and finishes
+  duration+1 later; upgrades and delete marks happen at init). Per-player unit
+  order is `own_seq`, UnitGrid query order is `grid_seq`. Structure capture is
+  PlayerExecution's loop (`player_structures_tick_ts`). Free exactness made
+  unconditional: structure placement tie-break (DFS order), delete cooldown
+  counted from tick -1, `alliance_break_raw` (nukes break alliances without
+  BreakAllianceExecution's relation updates). Skipped: PortExecution,
+  FactoryExecution, CityExecution station, warships (ships/rail waves),
+  waterNukes. Silo/SAM queues live in the unit's `path`, nuke trajectory too.
+  `paths_ts.c` still has its own RNG (`TsPathRng`).
+- **Not in TS order yet:** ships and rail ticks, `doomsday_tick` and `ai_tick` run after
   the execution list; the alliance-extension prompt for AIs is not called from
   `alliances_expire_of`; relations decay per player row only for players with
   a relation row.

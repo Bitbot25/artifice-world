@@ -85,3 +85,8 @@ cd $OPENFRONT_DIR && node_modules/.bin/tsx <repo>/tools/parity/water_paths.ts --
 cd <repo> && make build-parity/water_paths_c
 build-parity/water_paths_c $OPENFRONT_DIR/resources/maps/world 1 /tmp/world_compact.txt   # 1 = compact
 ```
+
+## Unit scenarios
+
+`make_unit_scenarios.py` plays builds, upgrades (amount > 1), deletes, captures, atom/hydrogen/MIRV launches (both rocket
+directions, stacked, at allies, late alliances) with and without SAM cover on the C parity build and records them.
