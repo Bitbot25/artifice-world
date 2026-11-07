@@ -19,7 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 if "OFE_LIB" not in os.environ:
-    os.environ["OFE_LIB"] = str(REPO / "build-parity" / "libofe.so")
+    os.environ["OFE_PARITY"] = "1"  # the build-parity library
 sys.path.insert(0, str(REPO / "python"))
 sys.path.insert(0, str(HERE))
 
