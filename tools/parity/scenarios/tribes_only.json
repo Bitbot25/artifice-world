@@ -1,0 +1,23 @@
+{
+ "name": "tribes_only",
+ "map": "world",
+ "map_size": "compact",
+ "game_id": "PARITY78",
+ "difficulty": "medium",
+ "nations": "disabled",
+ "bots": 80,
+ "humans": 0,
+ "ticks": 3000,
+ "intents": [],
+ "description": "80 tribes alone on compact World (boats off).",
+ "ts_config": {
+  "disabledUnits": [
+   "Transport"
+  ]
+ },
+ "c_config": {
+  "disabled_units": [
+   "transport_ship"
+  ]
+ }
+}

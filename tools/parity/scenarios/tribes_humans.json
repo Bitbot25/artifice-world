@@ -1,0 +1,2211 @@
+{
+ "name": "tribes_humans",
+ "map": "world",
+ "map_size": "compact",
+ "game_id": "PARITY56",
+ "difficulty": "medium",
+ "nations": "disabled",
+ "bots": 40,
+ "humans": 4,
+ "ticks": 4000,
+ "description": "4 humans among 40 tribes on compact World (boats off): humans and tribes expand, fight, ally, extend, betray; tribes retaliate and hit traitors.",
+ "ts_config": {
+  "disabledUnits": [
+   "Transport"
+  ],
+  "customAllianceDuration": 1
+ },
+ "c_config": {
+  "disabled_units": [
+   "transport_ship"
+  ],
+  "alliance_duration_minutes": 1
+ },
+ "intents": [
+  {
+   "tick": 0,
+   "player": 1,
+   "type": "spawn",
+   "x": 495,
+   "y": 97
+  },
+  {
+   "tick": 0,
+   "player": 2,
+   "type": "spawn",
+   "x": 474,
+   "y": 110
+  },
+  {
+   "tick": 0,
+   "player": 3,
+   "type": "spawn",
+   "x": 515,
+   "y": 96
+  },
+  {
+   "tick": 0,
+   "player": 4,
+   "type": "spawn",
+   "x": 507,
+   "y": 68
+  },
+  {
+   "tick": 215,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 12436
+  },
+  {
+   "tick": 220,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 15070
+  },
+  {
+   "tick": 225,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 15751
+  },
+  {
+   "tick": 230,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 11855
+  },
+  {
+   "tick": 235,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 9141
+  },
+  {
+   "tick": 240,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 5187
+  },
+  {
+   "tick": 245,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 6446
+  },
+  {
+   "tick": 250,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 11212
+  },
+  {
+   "tick": 255,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 5245
+  },
+  {
+   "tick": 260,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 11088
+  },
+  {
+   "tick": 265,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 5819
+  },
+  {
+   "tick": 270,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 6210
+  },
+  {
+   "tick": 275,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 4881
+  },
+  {
+   "tick": 280,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 8166
+  },
+  {
+   "tick": 285,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 6419
+  },
+  {
+   "tick": 290,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 12260
+  },
+  {
+   "tick": 295,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 10699
+  },
+  {
+   "tick": 300,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 5745
+  },
+  {
+   "tick": 305,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 11837
+  },
+  {
+   "tick": 310,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 9973
+  },
+  {
+   "tick": 315,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 4765
+  },
+  {
+   "tick": 320,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 3220
+  },
+  {
+   "tick": 325,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 9889
+  },
+  {
+   "tick": 330,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 5875
+  },
+  {
+   "tick": 335,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 6857
+  },
+  {
+   "tick": 340,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 9614
+  },
+  {
+   "tick": 345,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 19222
+  },
+  {
+   "tick": 350,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 4926
+  },
+  {
+   "tick": 355,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 8288
+  },
+  {
+   "tick": 360,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 8760
+  },
+  {
+   "tick": 365,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 30652
+  },
+  {
+   "tick": 370,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 6147
+  },
+  {
+   "tick": 375,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 18137
+  },
+  {
+   "tick": 380,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 11387
+  },
+  {
+   "tick": 385,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 38960
+  },
+  {
+   "tick": 390,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 5218
+  },
+  {
+   "tick": 395,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 29063
+  },
+  {
+   "tick": 400,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 19995
+  },
+  {
+   "tick": 405,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 40240
+  },
+  {
+   "tick": 410,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 4662
+  },
+  {
+   "tick": 415,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 33434
+  },
+  {
+   "tick": 420,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 37873
+  },
+  {
+   "tick": 425,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 32066
+  },
+  {
+   "tick": 430,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 4775
+  },
+  {
+   "tick": 435,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 41388
+  },
+  {
+   "tick": 440,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 27050
+  },
+  {
+   "tick": 445,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 30160
+  },
+  {
+   "tick": 450,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 2108
+  },
+  {
+   "tick": 455,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 50438
+  },
+  {
+   "tick": 460,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 22821
+  },
+  {
+   "tick": 465,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 47430
+  },
+  {
+   "tick": 470,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 2780
+  },
+  {
+   "tick": 475,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 51861
+  },
+  {
+   "tick": 480,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 39451
+  },
+  {
+   "tick": 485,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 68276
+  },
+  {
+   "tick": 490,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 4025
+  },
+  {
+   "tick": 495,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 31229
+  },
+  {
+   "tick": 510,
+   "player": 3,
+   "type": "alliance_request",
+   "target": 33
+  },
+  {
+   "tick": 515,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 47952
+  },
+  {
+   "tick": 520,
+   "player": 1,
+   "type": "attack",
+   "target": 3,
+   "troops": 57391
+  },
+  {
+   "tick": 530,
+   "player": 3,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 540,
+   "player": 1,
+   "type": "cancel_attack",
+   "target": 3
+  },
+  {
+   "tick": 545,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 550,
+   "player": 3,
+   "type": "cancel_attack",
+   "target": 0
+  },
+  {
+   "tick": 555,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 3
+  },
+  {
+   "tick": 560,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 54948
+  },
+  {
+   "tick": 565,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 570,
+   "player": 3,
+   "type": "alliance_request",
+   "target": 37
+  },
+  {
+   "tick": 575,
+   "player": 4,
+   "type": "break_alliance",
+   "target": 3
+  },
+  {
+   "tick": 580,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 45631
+  },
+  {
+   "tick": 590,
+   "player": 3,
+   "type": "break_alliance",
+   "target": 37
+  },
+  {
+   "tick": 595,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 86418
+  },
+  {
+   "tick": 600,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 134807
+  },
+  {
+   "tick": 605,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 153399
+  },
+  {
+   "tick": 610,
+   "player": 3,
+   "type": "attack",
+   "target": 31,
+   "troops": 38462
+  },
+  {
+   "tick": 615,
+   "player": 4,
+   "type": "attack",
+   "target": 3,
+   "troops": 168521
+  },
+  {
+   "tick": 620,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 3
+  },
+  {
+   "tick": 625,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 21804
+  },
+  {
+   "tick": 630,
+   "player": 3,
+   "type": "cancel_attack",
+   "target": 31
+  },
+  {
+   "tick": 635,
+   "player": 4,
+   "type": "attack",
+   "target": 31,
+   "troops": 42979
+  },
+  {
+   "tick": 640,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 51132
+  },
+  {
+   "tick": 645,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 655,
+   "player": 4,
+   "type": "cancel_attack",
+   "target": 3
+  },
+  {
+   "tick": 660,
+   "player": 1,
+   "type": "attack",
+   "target": 3,
+   "troops": 13421
+  },
+  {
+   "tick": 665,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 23737
+  },
+  {
+   "tick": 670,
+   "player": 3,
+   "type": "attack",
+   "target": 40,
+   "troops": 15744
+  },
+  {
+   "tick": 675,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 3
+  },
+  {
+   "tick": 685,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 3705
+  },
+  {
+   "tick": 690,
+   "player": 3,
+   "type": "attack",
+   "target": 4,
+   "troops": 17271
+  },
+  {
+   "tick": 695,
+   "player": 4,
+   "type": "attack",
+   "target": 3,
+   "troops": 170979
+  },
+  {
+   "tick": 700,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 4065
+  },
+  {
+   "tick": 705,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 6673
+  },
+  {
+   "tick": 710,
+   "player": 3,
+   "type": "cancel_attack",
+   "target": 40
+  },
+  {
+   "tick": 715,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 720,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 725,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 730,
+   "player": 3,
+   "type": "attack",
+   "target": 0,
+   "troops": 2871
+  },
+  {
+   "tick": 735,
+   "player": 4,
+   "type": "attack",
+   "target": 3,
+   "troops": 14460
+  },
+  {
+   "tick": 740,
+   "player": 1,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 750,
+   "player": 3,
+   "type": "alliance_request",
+   "target": 37
+  },
+  {
+   "tick": 755,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 12162
+  },
+  {
+   "tick": 760,
+   "player": 1,
+   "type": "attack",
+   "target": 4,
+   "troops": 12623
+  },
+  {
+   "tick": 765,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 1
+  },
+  {
+   "tick": 775,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 33
+  },
+  {
+   "tick": 780,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 800,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 805,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 1
+  },
+  {
+   "tick": 815,
+   "player": 4,
+   "type": "attack",
+   "target": 1,
+   "troops": 190484
+  },
+  {
+   "tick": 820,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 825,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 1
+  },
+  {
+   "tick": 835,
+   "player": 4,
+   "type": "attack",
+   "target": 37,
+   "troops": 20923
+  },
+  {
+   "tick": 845,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 54186
+  },
+  {
+   "tick": 855,
+   "player": 4,
+   "type": "attack",
+   "target": 40,
+   "troops": 14086
+  },
+  {
+   "tick": 860,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 2788
+  },
+  {
+   "tick": 865,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 21896
+  },
+  {
+   "tick": 875,
+   "player": 4,
+   "type": "attack",
+   "target": 37,
+   "troops": 63454
+  },
+  {
+   "tick": 880,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 1110
+  },
+  {
+   "tick": 885,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 13986
+  },
+  {
+   "tick": 895,
+   "player": 4,
+   "type": "attack",
+   "target": 2,
+   "troops": 28546
+  },
+  {
+   "tick": 900,
+   "player": 1,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 905,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 1
+  },
+  {
+   "tick": 915,
+   "player": 4,
+   "type": "attack",
+   "target": 40,
+   "troops": 45406
+  },
+  {
+   "tick": 920,
+   "player": 1,
+   "type": "break_alliance",
+   "target": 2
+  },
+  {
+   "tick": 925,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 4261
+  },
+  {
+   "tick": 935,
+   "player": 4,
+   "type": "attack",
+   "target": 37,
+   "troops": 28740
+  },
+  {
+   "tick": 940,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 4938
+  },
+  {
+   "tick": 945,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 955,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 4276
+  },
+  {
+   "tick": 960,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 965,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 1
+  },
+  {
+   "tick": 975,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 9532
+  },
+  {
+   "tick": 980,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 23611
+  },
+  {
+   "tick": 995,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 30
+  },
+  {
+   "tick": 1005,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 1
+  },
+  {
+   "tick": 1015,
+   "player": 4,
+   "type": "attack",
+   "target": 37,
+   "troops": 30655
+  },
+  {
+   "tick": 1020,
+   "player": 1,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1035,
+   "player": 4,
+   "type": "attack",
+   "target": 37,
+   "troops": 9064
+  },
+  {
+   "tick": 1040,
+   "player": 1,
+   "type": "cancel_attack",
+   "target": 2
+  },
+  {
+   "tick": 1045,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1055,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1060,
+   "player": 1,
+   "type": "attack",
+   "target": 0,
+   "troops": 6723
+  },
+  {
+   "tick": 1065,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1075,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 37
+  },
+  {
+   "tick": 1080,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 11459
+  },
+  {
+   "tick": 1085,
+   "player": 2,
+   "type": "attack",
+   "target": 1,
+   "troops": 40050
+  },
+  {
+   "tick": 1095,
+   "player": 4,
+   "type": "attack",
+   "target": 38,
+   "troops": 13973
+  },
+  {
+   "tick": 1100,
+   "player": 1,
+   "type": "attack",
+   "target": 2,
+   "troops": 7679
+  },
+  {
+   "tick": 1105,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1115,
+   "player": 4,
+   "type": "attack",
+   "target": 34,
+   "troops": 5894
+  },
+  {
+   "tick": 1125,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 26650
+  },
+  {
+   "tick": 1135,
+   "player": 4,
+   "type": "attack",
+   "target": 40,
+   "troops": 1755
+  },
+  {
+   "tick": 1145,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1155,
+   "player": 4,
+   "type": "break_alliance",
+   "target": 2
+  },
+  {
+   "tick": 1165,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 34030
+  },
+  {
+   "tick": 1175,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 40
+  },
+  {
+   "tick": 1185,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1205,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 118553
+  },
+  {
+   "tick": 1215,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 38
+  },
+  {
+   "tick": 1235,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1245,
+   "player": 2,
+   "type": "attack",
+   "target": 33,
+   "troops": 78553
+  },
+  {
+   "tick": 1255,
+   "player": 4,
+   "type": "attack",
+   "target": 2,
+   "troops": 15715
+  },
+  {
+   "tick": 1265,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 33
+  },
+  {
+   "tick": 1275,
+   "player": 4,
+   "type": "attack",
+   "target": 2,
+   "troops": 1479
+  },
+  {
+   "tick": 1285,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1295,
+   "player": 4,
+   "type": "break_alliance",
+   "target": 40
+  },
+  {
+   "tick": 1305,
+   "player": 2,
+   "type": "attack",
+   "target": 34,
+   "troops": 91022
+  },
+  {
+   "tick": 1315,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 1736
+  },
+  {
+   "tick": 1325,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 34
+  },
+  {
+   "tick": 1335,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 306
+  },
+  {
+   "tick": 1355,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1365,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1385,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 30
+  },
+  {
+   "tick": 1395,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 33
+  },
+  {
+   "tick": 1405,
+   "player": 2,
+   "type": "attack",
+   "target": 33,
+   "troops": 76460
+  },
+  {
+   "tick": 1415,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 1425,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1435,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 1445,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 38
+  },
+  {
+   "tick": 1465,
+   "player": 2,
+   "type": "attack",
+   "target": 34,
+   "troops": 193602
+  },
+  {
+   "tick": 1475,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1485,
+   "player": 2,
+   "type": "attack",
+   "target": 27,
+   "troops": 76538
+  },
+  {
+   "tick": 1495,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1505,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 27
+  },
+  {
+   "tick": 1515,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 1525,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 73519
+  },
+  {
+   "tick": 1535,
+   "player": 4,
+   "type": "break_alliance",
+   "target": 30
+  },
+  {
+   "tick": 1545,
+   "player": 2,
+   "type": "attack",
+   "target": 26,
+   "troops": 115718
+  },
+  {
+   "tick": 1555,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1565,
+   "player": 2,
+   "type": "attack",
+   "target": 26,
+   "troops": 156702
+  },
+  {
+   "tick": 1575,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1585,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 19624
+  },
+  {
+   "tick": 1595,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1605,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 26630
+  },
+  {
+   "tick": 1615,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1625,
+   "player": 2,
+   "type": "attack",
+   "target": 27,
+   "troops": 89103
+  },
+  {
+   "tick": 1635,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1645,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 89788
+  },
+  {
+   "tick": 1655,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1665,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 4
+  },
+  {
+   "tick": 1675,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 41603
+  },
+  {
+   "tick": 1685,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 40
+  },
+  {
+   "tick": 1695,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 33598
+  },
+  {
+   "tick": 1715,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1725,
+   "player": 2,
+   "type": "attack",
+   "target": 19,
+   "troops": 138907
+  },
+  {
+   "tick": 1745,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 19
+  },
+  {
+   "tick": 1755,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1775,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1785,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 38
+  },
+  {
+   "tick": 1795,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 25977
+  },
+  {
+   "tick": 1805,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 40
+  },
+  {
+   "tick": 1815,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1825,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 19
+  },
+  {
+   "tick": 1845,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 16
+  },
+  {
+   "tick": 1855,
+   "player": 4,
+   "type": "break_alliance",
+   "target": 2
+  },
+  {
+   "tick": 1865,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 196920
+  },
+  {
+   "tick": 1875,
+   "player": 4,
+   "type": "alliance_request",
+   "target": 2
+  },
+  {
+   "tick": 1885,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 4
+  },
+  {
+   "tick": 1895,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 56060
+  },
+  {
+   "tick": 1905,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 40
+  },
+  {
+   "tick": 1915,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 26443
+  },
+  {
+   "tick": 1935,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 1945,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 16
+  },
+  {
+   "tick": 1955,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 37070
+  },
+  {
+   "tick": 1965,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 246918
+  },
+  {
+   "tick": 1985,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 40
+  },
+  {
+   "tick": 1995,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2005,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 2015,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2025,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 16
+  },
+  {
+   "tick": 2035,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2045,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 16
+  },
+  {
+   "tick": 2055,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2065,
+   "player": 2,
+   "type": "attack",
+   "target": 30,
+   "troops": 570803
+  },
+  {
+   "tick": 2075,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2085,
+   "player": 2,
+   "type": "attack",
+   "target": 44,
+   "troops": 91078
+  },
+  {
+   "tick": 2095,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 41828
+  },
+  {
+   "tick": 2105,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 30
+  },
+  {
+   "tick": 2115,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2125,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 44
+  },
+  {
+   "tick": 2135,
+   "player": 4,
+   "type": "alliance_extension",
+   "target": 2
+  },
+  {
+   "tick": 2145,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 4
+  },
+  {
+   "tick": 2155,
+   "player": 4,
+   "type": "attack",
+   "target": 0,
+   "troops": 54920
+  },
+  {
+   "tick": 2165,
+   "player": 2,
+   "type": "attack",
+   "target": 4,
+   "troops": 659245
+  },
+  {
+   "tick": 2185,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 15
+  },
+  {
+   "tick": 2205,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 15
+  },
+  {
+   "tick": 2225,
+   "player": 2,
+   "type": "attack",
+   "target": 15,
+   "troops": 604289
+  },
+  {
+   "tick": 2245,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 15
+  },
+  {
+   "tick": 2265,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 375673
+  },
+  {
+   "tick": 2285,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 2305,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 216516
+  },
+  {
+   "tick": 2325,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 40
+  },
+  {
+   "tick": 2345,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 15
+  },
+  {
+   "tick": 2365,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 376532
+  },
+  {
+   "tick": 2385,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 15
+  },
+  {
+   "tick": 2405,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 16
+  },
+  {
+   "tick": 2425,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 2445,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 40
+  },
+  {
+   "tick": 2465,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 319650
+  },
+  {
+   "tick": 2485,
+   "player": 2,
+   "type": "attack",
+   "target": 38,
+   "troops": 459536
+  },
+  {
+   "tick": 2505,
+   "player": 2,
+   "type": "attack",
+   "target": 38,
+   "troops": 340891
+  },
+  {
+   "tick": 2525,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 52222
+  },
+  {
+   "tick": 2545,
+   "player": 2,
+   "type": "attack",
+   "target": 40,
+   "troops": 129306
+  },
+  {
+   "tick": 2565,
+   "player": 2,
+   "type": "attack",
+   "target": 38,
+   "troops": 27063
+  },
+  {
+   "tick": 2585,
+   "player": 2,
+   "type": "attack",
+   "target": 38,
+   "troops": 24134
+  },
+  {
+   "tick": 2605,
+   "player": 2,
+   "type": "attack",
+   "target": 44,
+   "troops": 575579
+  },
+  {
+   "tick": 2625,
+   "player": 2,
+   "type": "attack",
+   "target": 44,
+   "troops": 165881
+  },
+  {
+   "tick": 2645,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 32573
+  },
+  {
+   "tick": 2665,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 15
+  },
+  {
+   "tick": 2685,
+   "player": 2,
+   "type": "attack",
+   "target": 40,
+   "troops": 754711
+  },
+  {
+   "tick": 2705,
+   "player": 2,
+   "type": "attack",
+   "target": 17,
+   "troops": 87211
+  },
+  {
+   "tick": 2725,
+   "player": 2,
+   "type": "attack",
+   "target": 40,
+   "troops": 39576
+  },
+  {
+   "tick": 2745,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 15
+  },
+  {
+   "tick": 2765,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 16
+  },
+  {
+   "tick": 2785,
+   "player": 2,
+   "type": "attack",
+   "target": 11,
+   "troops": 582748
+  },
+  {
+   "tick": 2805,
+   "player": 2,
+   "type": "attack",
+   "target": 17,
+   "troops": 257017
+  },
+  {
+   "tick": 2825,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 11
+  },
+  {
+   "tick": 2845,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 110662
+  },
+  {
+   "tick": 2865,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 2905,
+   "player": 2,
+   "type": "attack",
+   "target": 11,
+   "troops": 476292
+  },
+  {
+   "tick": 2925,
+   "player": 2,
+   "type": "cancel_attack",
+   "target": 11
+  },
+  {
+   "tick": 2945,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 2965,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 9
+  },
+  {
+   "tick": 2985,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 24
+  },
+  {
+   "tick": 3005,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 11
+  },
+  {
+   "tick": 3025,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 352934
+  },
+  {
+   "tick": 3045,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 11
+  },
+  {
+   "tick": 3065,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 11
+  },
+  {
+   "tick": 3085,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 3105,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 24
+  },
+  {
+   "tick": 3125,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3145,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 30
+  },
+  {
+   "tick": 3165,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3185,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 454914
+  },
+  {
+   "tick": 3205,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 15
+  },
+  {
+   "tick": 3225,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 245242
+  },
+  {
+   "tick": 3245,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3265,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 24
+  },
+  {
+   "tick": 3285,
+   "player": 2,
+   "type": "attack",
+   "target": 15,
+   "troops": 518853
+  },
+  {
+   "tick": 3305,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 15
+  },
+  {
+   "tick": 3325,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 254144
+  },
+  {
+   "tick": 3365,
+   "player": 2,
+   "type": "attack",
+   "target": 24,
+   "troops": 894955
+  },
+  {
+   "tick": 3405,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 24
+  },
+  {
+   "tick": 3425,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3445,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 9
+  },
+  {
+   "tick": 3465,
+   "player": 2,
+   "type": "attack",
+   "target": 16,
+   "troops": 655220
+  },
+  {
+   "tick": 3485,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 193542
+  },
+  {
+   "tick": 3505,
+   "player": 2,
+   "type": "attack",
+   "target": 9,
+   "troops": 555347
+  },
+  {
+   "tick": 3525,
+   "player": 2,
+   "type": "alliance_request",
+   "target": 9
+  },
+  {
+   "tick": 3545,
+   "player": 2,
+   "type": "attack",
+   "target": 9,
+   "troops": 318686
+  },
+  {
+   "tick": 3565,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 360073
+  },
+  {
+   "tick": 3585,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3605,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 622014
+  },
+  {
+   "tick": 3625,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 419880
+  },
+  {
+   "tick": 3645,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3665,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 488422
+  },
+  {
+   "tick": 3685,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3705,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3725,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3745,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3765,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 637818
+  },
+  {
+   "tick": 3785,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3805,
+   "player": 2,
+   "type": "attack",
+   "target": 0,
+   "troops": 323642
+  },
+  {
+   "tick": 3825,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3845,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3865,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3885,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3925,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3945,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 19
+  },
+  {
+   "tick": 3965,
+   "player": 2,
+   "type": "alliance_extension",
+   "target": 9
+  },
+  {
+   "tick": 3985,
+   "player": 2,
+   "type": "break_alliance",
+   "target": 19
+  }
+ ]
+}

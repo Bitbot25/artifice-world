@@ -98,7 +98,18 @@ def observe(g, hasher: TileHasher, tribes_exist: bool = True):
     fallout = (g.tile_state() & (1 << 13)) != 0
     ex = [[0, int(g.winner), 0, 0]] + sorted([int(p["id"]), int(bool(p["flags"] & 4)), int(p["traitor_ticks_left"]), int(p["target"])] for p in players)
     ids = [int(p["id"]) for p in players]
-    em = [[a, b] for a in ids for b in ids if a != b and len(ids) <= 40 and g.is_embargoed(a, b)]
+    # Tribes never embargo anybody (AttackExecution skips bots), so only pairs with a non-tribe are asked.
+    nontribes = [int(p["id"]) for p in players if int(p["type"]) != 2]
+    em = set()
+    for a in nontribes:
+        for b in ids:
+            if a == b:
+                continue
+            if g.is_embargoed(a, b):
+                em.add((a, b))
+            if g.is_embargoed(b, a):
+                em.add((b, a))
+    em = [list(x) for x in sorted(em)]
     lists = {"pl": pl, "un": un, "at": at, "al": al, "ex": ex, "em": em}
     return lists, owners, digest(lists, hasher.owners(owners), hasher.mask(fallout))
 

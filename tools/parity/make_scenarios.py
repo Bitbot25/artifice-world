@@ -142,7 +142,94 @@ def social_intents(rnd, t, p, pl, st, allies, nb):
     return out
 
 
+def land_spots(map_name: str, n: int) -> list[tuple[int, int]]:
+    """n land tiles near the middle of a compact map, spread out."""
+    m = trace_c.ae.Map.load(str(trace_c.maps_dir() / map_name), compact=True)
+    land = (m.terrain() & 0x80) != 0
+    out: list[tuple[int, int]] = []
+    for k in range(n):
+        cx, cy = m.width * (0.3 + 0.4 * (k % 2)), m.height * (0.35 + 0.3 * (k // 2 % 2))
+        best = min(((x, y) for y in range(m.height) for x in range(m.width) if land[y, x] and land[max(0, y - 6):y + 7, max(0, x - 6):x + 7].all()),
+                   key=lambda xy: (xy[0] - cx) ** 2 + (xy[1] - cy) ** 2)
+        out.append(best)
+    return out
+
+
+def tribes_war(seed: int, spots: list[tuple[int, int]]):
+    """Humans (one per spot) among tribes: expansion, attacks on neighbouring
+    tribes, alliance requests (tribes accept on their beat), extensions,
+    betrayals (tribes then hit the traitor) and cancelled attacks."""
+    humans = len(spots)
+    rnd = random.Random(seed)
+
+    def decide(t, st):
+        if t == 0:
+            return [dict(tick=0, player=i + 1, type="spawn", x=x, y=y) for i, (x, y) in enumerate(spots)]
+        if st is None or t % 5 != 0:
+            return []
+        pl = st["players"]
+        p = 1 + (t // 5) % humans
+        row = pl[p]
+        if row["num_tiles"] == 0:
+            return []
+        nb = sorted(st["nb"].get(p, ()))
+        allies = {int(a["b"]) if int(a["a"]) == p else int(a["a"]) for a in st["alliances"] if p in (int(a["a"]), int(a["b"]))}
+        foes = [q for q in nb if q not in allies]
+        mine = [a for a in st["attacks"] if int(a["attacker"]) == p]
+        troops = int(row["troops"])
+        r = rnd.random()
+        if t < 500 or r < 0.12:
+            return [dict(tick=t, player=p, type="attack", target=0, troops=max(1, int(troops * rnd.uniform(0.2, 0.5))))]
+        if r < 0.45 and foes:
+            q = min(foes, key=lambda q: pl[q]["troops"]) if rnd.random() < 0.5 else rnd.choice(foes)
+            return [dict(tick=t, player=p, type="attack", target=q, troops=max(1, int(troops * rnd.uniform(0.3, 0.9))))]
+        if r < 0.55 and mine:
+            return [dict(tick=t, player=p, type="cancel_attack", target=int(rnd.choice(mine)["target"]))]
+        if r < 0.72 and foes:
+            return [dict(tick=t, player=p, type="alliance_request", target=rnd.choice(foes))]
+        if r < 0.85 and allies:
+            return [dict(tick=t, player=p, type="alliance_extension", target=rnd.choice(sorted(allies)))]
+        if r < 0.9 and allies:
+            return [dict(tick=t, player=p, type="break_alliance", target=rnd.choice(sorted(allies)))]
+        return []
+
+    return decide
+
+
+NO_BOATS = dict(ts_config={"disabledUnits": ["Transport"]}, c_config={"disabled_units": ["transport_ship"]})
+
+
+def tribe_scenarios():
+    out = []
+    # Transport ships are not exact yet: switched off where the run would go past the first boat.
+    out.append((dict(name="tribes_humans", map="world", map_size="compact", game_id="PARITY56", difficulty="medium",
+                     nations="disabled", bots=40, humans=4, ticks=4000,
+                     description="4 humans among 40 tribes on compact World (boats off): humans and tribes expand, "
+                                 "fight, ally, extend, betray; tribes retaliate and hit traitors.",
+                     ts_config={"disabledUnits": ["Transport"], "customAllianceDuration": 1},
+                     c_config={"disabled_units": ["transport_ship"], "alliance_duration_minutes": 1}), tribes_war(5, SPOTS[:4])))
+    out.append((dict(name="tribes_only", map="world", map_size="compact", game_id="PARITY78", difficulty="medium",
+                     nations="disabled", bots=80, humans=0, ticks=3000, intents=[],
+                     description="80 tribes alone on compact World (boats off).", **NO_BOATS), None))
+    out.append((dict(name="tribes_europe", map="europe", map_size="compact", game_id="PARITY90", difficulty="hard",
+                     nations="disabled", bots=60, humans=2, ticks=3000,
+                     description="2 humans among 60 tribes on compact Europe, hard difficulty (boats off).",
+                     ts_config={"disabledUnits": ["Transport"], "customAllianceDuration": 1},
+                     c_config={"disabled_units": ["transport_ship"], "alliance_duration_minutes": 1}), tribes_war(9, land_spots("europe", 2))))
+    out.append((dict(name="tribes_first_boat", map="world", map_size="compact", game_id="PARITY02", difficulty="medium",
+                     nations="disabled", bots=20, humans=0, ticks=650, intents=[],
+                     description="20 tribes with boats on: exact up to the first transport ship (tick 663)."), None))
+    return out
+
+
 def main():
+    if "tribes" in sys.argv[1:]:
+        for sc, decide in tribe_scenarios():
+            if decide is not None:
+                play(sc, decide)
+            (HERE / "scenarios" / f"{sc['name']}.json").write_text(json.dumps(sc, indent=1) + "\n")
+            print(sc["name"], len(sc.get("intents", [])), "intents")
+        return
     base = dict(map="world", map_size="compact", game_id="PARITY12", difficulty="medium", nations="disabled", bots=0,
                 humans=12, ts_config={}, c_config={})
     war_sc = dict(base, name="war_12humans", game_id="PARITY12", ticks=6000,

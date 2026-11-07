@@ -15,9 +15,14 @@
  * new PlayerExecution first ticks the tick after it is created. Per-player
  * work (growth, expiry, enclaves) and attacks interleave in that order.
  *
- * Executions modelled here: spawn, player, attack, and the intent kinds below.
- * Units, nations and tribes still tick after the list, in the default order
- * (they join the TS order in later waves).
+ * Executions modelled here: spawn, player, attack, the intent kinds below, and
+ * tribes: every tribe has a SpawnExecution created at game start (it ticks on
+ * tick 1 and adds the tribe as a player, so tribe small ids follow the humans
+ * and nations in creation order), which adds the tribe's PlayerExecution and
+ * then its TribeExecution (ai_tribe_ts.c). A tribe therefore ticks right
+ * after its own PlayerExecution, in the order the tribes spawned.
+ * Units and nations still tick after the list, in the default order (they
+ * join the TS order in later waves).
  */
 #include "internal.h"
 #include "tribe_ts.h"
