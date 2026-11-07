@@ -27,6 +27,7 @@ enum MapCacheSlot {
     MAP_CACHE_RAIL = 3,
     MAP_CACHE_AI = 4,
     MAP_CACHE_STATIC = 5, /* mapstatic.c */
+    MAP_CACHE_TS_WATER = 6, /* pathfind_ts.c (TS-parity build) */
     MAP_CACHE_COUNT = 8
 };
 typedef void *(*MapCacheBuild)(const OfeMap *map);

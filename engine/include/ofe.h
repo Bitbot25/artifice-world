@@ -190,7 +190,11 @@ typedef struct OfeConfig {
     double gold_multiplier; /* 0 = default 1.0 */
     uint32_t event_mask; /* which OfeEventType to log, see OFE_EVENTS_* */
     int32_t humans_use_ai; /* 1 = built-in nation AI also drives human players (testing) */
-    int32_t reserved[8];
+    /* OpenFront game id (NUL-terminated). The TS-parity build seeds every
+     * random stream from it, as OpenFront does; "" = derived from the seed.
+     * The default build ignores it. */
+    char game_id[24];
+    int32_t reserved[2];
 } OfeConfig;
 
 typedef struct OfeIntent {

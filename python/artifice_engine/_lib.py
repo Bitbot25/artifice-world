@@ -19,15 +19,20 @@ import numpy as np
 
 
 def _find_library() -> str:
+    """OFE_LIB if set; else the TS-parity build if OFE_PARITY=1 (`make parity`),
+    else the default build."""
     env = os.environ.get("OFE_LIB")
     if env:
         return env
     here = Path(__file__).resolve().parent
-    for cand in (here / "libofe.so", here.parents[1] / "build" / "libofe.so"):
+    parity = os.environ.get("OFE_PARITY") == "1"
+    build = "build-parity" if parity else "build"
+    installed = here / ("libofe_parity.so" if parity else "libofe.so")
+    for cand in (installed, here.parents[1] / build / "libofe.so"):
         if cand.exists():
             return str(cand)
     raise OSError(
-        "libofe.so not found: run `make` in the repository root or set OFE_LIB"
+        f"libofe.so not found in {build}/: run `make` (or `make parity`) in the repository root or set OFE_LIB"
     )
 
 
@@ -162,7 +167,8 @@ class Config(C.Structure):
         ("gold_multiplier", f64),
         ("event_mask", u32),
         ("humans_use_ai", i32),
-        ("reserved", i32 * 8),
+        ("game_id", C.c_char * 24),
+        ("reserved", i32 * 2),
     ]
 
 
