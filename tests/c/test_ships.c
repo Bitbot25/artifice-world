@@ -204,7 +204,21 @@ static void test_boat_limit_and_cancel(OfeMap *m) {
     cancel.target = id;
     ofe_game_push_intents(g, &cancel, 1);
     int64_t troops_at_cancel = g->players.troops[1];
-    ofe_game_step(g, 1);
+    ofe_game_step(g, 2); /* the order lands, then the ship plans its way home */
+    /* It heads for the own shore nearest to where it is, not back to where it left. */
+    {
+        int32_t sl = unit_lookup(g, id);
+        CHECK(sl >= 0);
+        if (sl >= 0) {
+            TileRef home = g->units.target_tile[sl], here = g->units.tile[sl];
+            CHECK(tile_owner(g, home) == 1 && map_is_shore(m, home));
+            const IntVec *bd = &g->players.border[1];
+            for (int32_t i = 0; i < bd->len; i++) {
+                if (map_is_shore(m, bd->data[i]) && water_tile_component(water_graph(m), m, bd->data[i]) == water_tile_component(water_graph(m), m, here))
+                    CHECK(map_manhattan(m, bd->data[i], here) >= map_manhattan(m, home, here));
+            }
+        }
+    }
     int guard = 0;
     while (unit_lookup(g, id) >= 0 && guard++ < 200) ofe_game_step(g, 1);
     CHECK(unit_lookup(g, id) < 0);
