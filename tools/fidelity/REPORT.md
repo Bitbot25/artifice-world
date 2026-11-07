@@ -27,7 +27,7 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 | Land attack on terra nullius, 9 cells | tiles conquered: median delta 0.0%, p90 0.3% |
 | Land attack on a player, 36 cells | tiles conquered: median +0.6%, p90 1.9%, worst cell +2.8% |
 | Wiping out an 80-tile player; enclave annexation; city and defense post | identical or within 0.2% |
-| Boat travel time, 10 routes (25 to 350 tiles) | all land in both except boat_d350_0 (neither within 700 ticks); per-route C/TS ratio mean 0.98 (min 0.69, max 1.12); boat_d350_1: 696 vs 697 ticks |
+| Boat travel time, 10 routes (25 to 350 tiles) | identical on every route (per-route C/TS ratio 1.000; boat_d350_0 lands in neither within 700 ticks); ships use OpenFront's own water pathfinder |
 | Nation spawn size at t=0 | 46.6 vs 47.2 tiles per nation (C used to give a fixed 49.9) |
 | Tribes alive at t=600 | 14.5 vs 12.5 (was 23 vs 12.5); all gone by t=2400 in both |
 | Nation land at t=600 / t=6000 | 139k vs 140k / 156k vs 158k tiles; nations alive at t=6000: 13.5 vs 12.5 |
@@ -48,30 +48,30 @@ Nukes, rail, doomsday, embargoes and team games exist in C but are not scripted 
 * AI alliance answers are given on the AI's own turn (OpenFront's AIs look at their inbox only when they wake up):
   nations reject everything asked during the spawn phase, tribes accept everything, and neither asks to extend an
   alliance on its own (only an agent's extension ask is answered).
-* Ship routing: both routing grids cut straits one or two tiles wide, which closed the Mediterranean, Black Sea and
-  Baltic and sent Arctic to Pacific boats round the Atlantic (1250 ticks instead of about 700 in boat_d350_1). A full-
-  resolution grid is now searched when both grids fail, or when a grid route is over three times the straight line
-  (greedy A*, built once per map, memoised). All 297 random shore pairs of the world test are routable (9 failed before).
-  AI "could a boat go there" probes no longer search at all (same water body is enough).
-* A cancelled transport ship sails to the own shore nearest to where it is (25% of the troops lost on arrival), not
-  back along its route.
+* Ship routing is OpenFront's own water pathfinder in both builds (`engine/src/pathfind_ts.c`: mini map from
+  `map4x.bin`/`map16x.bin`, hierarchical A*, smoothing, shore coercing; verified tile for tile against TS). It
+  replaces the weighted grid A* with string pulling and its full-resolution strait fallback, which were slower and gave
+  routes that differed by tens of percent (boat_d50_1: 74 vs 107 ticks, boat_d200_1: 414 vs 371). Launch and retreat
+  shores follow `closestShoreByWater` (route-based, with `refineStartTile`), water bodies are `getWaterComponent`.
+  Straits, the Bering route (about 700 ticks) and all 297 random shore pairs of the world test are routable. Routes are
+  memoised per map; ships hold a stepper (`WaterPathFinder.next`) in the unit table.
+* A cancelled transport ship sails to the nearest own shore by water, as in OpenFront (25% of the troops lost on
+  arrival), not back along its route.
 
 **Remaining differences (not fixed)**
 
-1. Pathfinding is not OpenFront's hierarchical A*: routes come from weighted A* on routing grids plus string pulling.
-   Straight stretches take the same number of ticks, detours can differ by tens of percent (boat_d50_1: 74 vs 107 ticks,
-   boat_d200_1: 414 vs 371).
-2. The retreat shore is chosen by straight-line distance, OpenFront's closestShoreByWater measures by water.
-3. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here.
-4. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
+1. Warship and trade-ship choices (target selection, port capacity) are simpler; only boats are compared here. Their
+   routes are exact, their decisions are not (the leader-land-share row of the AI section has n=6 and flags at some
+   checkpoints from run to run; it is sampling noise there).
+2. Nations do not use OpenFront's walled-in-bot annexation planner (Hard and Impossible only), their boat targets are
    not checked against hostile warships, and "largest cluster" boxes are the border bounding box. Medium is what the
    comparison runs.
-5. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
+3. MIRV targeting and nuke trajectories are sampled and SAM interception is judged by range of the blast, not by the
    trajectory; no nuke price memory or strike follow-ups for nations. A 20-minute Impossible world game launches about
    250 nukes in C; there is no TS number to compare it with yet.
-6. Enclave annexation uses no diagonal-pinch pass (nuke craters).
-7. No emojis, no tutorial logic, no team-spawn areas.
-8. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
+4. Enclave annexation uses no diagonal-pinch pass (nuke craters).
+5. No emojis, no tutorial logic, no team-spawn areas.
+6. Random draws are not reproduced: only distributions can be compared, and with 6 seeds the AI rows have wide
    confidence intervals (leader share, nations alive at t=6000).
 
 ## 1. Idle player: troop and gold curves
@@ -416,12 +416,12 @@ Players per game: TS 132, C 132.
 | tribe tiles total @ t=0 | 6 | 3,112 | 8.98 | 3,120 | 0 | +0.2% | 0.67 | 0.077 | ok |
 | tribe alive @ t=0 | 6 | 60.00 | 0 | 60.00 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe mean tiles/alive @ t=0 | 6 | 51.87 | 0.15 | 52.00 | 0 | +0.2% | 0.67 | 0.077 | ok |
-| tribe tiles total @ t=600 | 6 | 14,956 | 4,304 | 16,093 | 4,222 | +7.6% | 0.33 | 0.81 | ok |
-| tribe alive @ t=600 | 6 | 12.50 | 4.85 | 14.50 | 2.59 | +16.0% | 0.5 | 0.32 | ok |
-| tribe mean tiles/alive @ t=600 | 6 | 1,252 | 215.4 | 1,100 | 135.9 | -12.1% | 0.5 | 0.32 | ok |
-| tribe tiles total @ t=1200 | 6 | 1,248 | 1,658 | 485.2 | 583.9 | -61.1% | 0.33 | 0.81 | ok |
-| tribe alive @ t=1200 | 6 | 1.17 | 1.17 | 1.17 | 0.753 | +0.0% | 0.17 | 1 | ok |
-| tribe mean tiles/alive @ t=1200 | 6 | 653.4 | 773.5 | 426.1 | 594.5 | -34.8% | 0.33 | 0.81 | ok |
+| tribe tiles total @ t=600 | 6 | 14,956 | 4,304 | 16,880 | 3,255 | +12.9% | 0.33 | 0.81 | ok |
+| tribe alive @ t=600 | 6 | 12.50 | 4.85 | 14.00 | 2.53 | +12.0% | 0.33 | 0.81 | ok |
+| tribe mean tiles/alive @ t=600 | 6 | 1,252 | 215.4 | 1,206 | 74.62 | -3.7% | 0.33 | 0.81 | ok |
+| tribe tiles total @ t=1200 | 6 | 1,248 | 1,658 | 387.2 | 889.6 | -69.0% | 0.5 | 0.32 | ok |
+| tribe alive @ t=1200 | 6 | 1.17 | 1.17 | 0.667 | 0.816 | -42.9% | 0.17 | 1 | ok |
+| tribe mean tiles/alive @ t=1200 | 6 | 653.4 | 773.5 | 203.7 | 440.7 | -68.8% | 0.5 | 0.32 | ok |
 | tribe tiles total @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe alive @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
 | tribe mean tiles/alive @ t=2400 | 6 | 0 | 0 | 0 | 0 | +0.0% | 0 | 1.00 | ok |
@@ -434,36 +434,36 @@ Players per game: TS 132, C 132.
 | nation tiles total @ t=0 | 6 | 3,396 | 58.06 | 3,355 | 31.08 | -1.2% | 0.67 | 0.077 | ok |
 | nation alive @ t=0 | 6 | 72.00 | 0 | 72.00 | 0 | +0.0% | 0 | 1.00 | ok |
 | nation mean tiles/alive @ t=0 | 6 | 47.16 | 0.806 | 46.59 | 0.432 | -1.2% | 0.67 | 0.077 | ok |
-| nation tiles total @ t=600 | 6 | 140,414 | 4,316 | 139,171 | 3,860 | -0.9% | 0.17 | 1 | ok |
-| nation alive @ t=600 | 6 | 62.17 | 3.82 | 62.67 | 0.516 | +0.8% | 0.67 | 0.077 | ok |
-| nation mean tiles/alive @ t=600 | 6 | 2,264 | 107.9 | 2,221 | 76.43 | -1.9% | 0.33 | 0.81 | ok |
-| nation tiles total @ t=1200 | 6 | 155,913 | 1,797 | 156,324 | 522.1 | +0.3% | 0.5 | 0.32 | ok |
-| nation alive @ t=1200 | 6 | 44.00 | 2.90 | 46.33 | 2.73 | +5.3% | 0.33 | 0.81 | ok |
-| nation mean tiles/alive @ t=1200 | 6 | 3,556 | 229.7 | 3,384 | 208.3 | -4.8% | 0.5 | 0.32 | ok |
-| nation tiles total @ t=2400 | 6 | 157,654 | 651.3 | 157,629 | 101.4 | -0.0% | 0.83 | 0.012 | ok |
-| nation alive @ t=2400 | 6 | 31.33 | 3.39 | 29.17 | 3.13 | -6.9% | 0.67 | 0.077 | ok |
-| nation mean tiles/alive @ t=2400 | 6 | 5,081 | 556.6 | 5,452 | 532.5 | +7.3% | 0.67 | 0.077 | ok |
-| nation tiles total @ t=4000 | 6 | 157,472 | 944.0 | 157,589 | 313.7 | +0.1% | 0.67 | 0.077 | ok |
-| nation alive @ t=4000 | 6 | 20.50 | 1.97 | 19.33 | 3.01 | -5.7% | 0.5 | 0.32 | ok |
-| nation mean tiles/alive @ t=4000 | 6 | 7,740 | 731.7 | 8,317 | 1,277 | +7.4% | 0.5 | 0.32 | ok |
-| nation tiles total @ t=6000 | 6 | 158,029 | 29.99 | 155,728 | 3,004 | -1.5% | 1.00 | 0.0013 | ok |
-| nation alive @ t=6000 | 6 | 12.50 | 1.87 | 13.50 | 2.26 | +8.0% | 0.33 | 0.81 | ok |
-| nation mean tiles/alive @ t=6000 | 6 | 12,886 | 1,968 | 11,846 | 2,268 | -8.1% | 0.5 | 0.32 | ok |
+| nation tiles total @ t=600 | 6 | 140,414 | 4,316 | 138,229 | 3,207 | -1.6% | 0.5 | 0.32 | ok |
+| nation alive @ t=600 | 6 | 62.17 | 3.82 | 61.17 | 1.47 | -1.6% | 0.67 | 0.077 | ok |
+| nation mean tiles/alive @ t=600 | 6 | 2,264 | 107.9 | 2,262 | 94.39 | -0.1% | 0.33 | 0.81 | ok |
+| nation tiles total @ t=1200 | 6 | 155,913 | 1,797 | 156,209 | 1,177 | +0.2% | 0.17 | 1 | ok |
+| nation alive @ t=1200 | 6 | 44.00 | 2.90 | 43.67 | 3.67 | -0.8% | 0.17 | 1 | ok |
+| nation mean tiles/alive @ t=1200 | 6 | 3,556 | 229.7 | 3,598 | 295.3 | +1.2% | 0.33 | 0.81 | ok |
+| nation tiles total @ t=2400 | 6 | 157,654 | 651.3 | 157,415 | 192.0 | -0.2% | 0.83 | 0.012 | ok |
+| nation alive @ t=2400 | 6 | 31.33 | 3.39 | 29.33 | 3.33 | -6.4% | 0.33 | 0.81 | ok |
+| nation mean tiles/alive @ t=2400 | 6 | 5,081 | 556.6 | 5,425 | 623.4 | +6.8% | 0.33 | 0.81 | ok |
+| nation tiles total @ t=4000 | 6 | 157,472 | 944.0 | 157,680 | 67.84 | +0.1% | 0.67 | 0.077 | ok |
+| nation alive @ t=4000 | 6 | 20.50 | 1.97 | 19.83 | 3.71 | -3.3% | 0.5 | 0.32 | ok |
+| nation mean tiles/alive @ t=4000 | 6 | 7,740 | 731.7 | 8,179 | 1,477 | +5.7% | 0.5 | 0.32 | ok |
+| nation tiles total @ t=6000 | 6 | 158,029 | 29.99 | 155,984 | 3,937 | -1.3% | 1.00 | 0.0013 | ok |
+| nation alive @ t=6000 | 6 | 12.50 | 1.87 | 11.83 | 1.72 | -5.3% | 0.33 | 0.81 | ok |
+| nation mean tiles/alive @ t=6000 | 6 | 12,886 | 1,968 | 13,424 | 2,001 | +4.2% | 0.33 | 0.81 | ok |
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
 | tribe tiles per alive player @ t=6000 (pooled) | 0 | - | - | - | - | - | - | - | n/a |
-| nation tiles per alive player @ t=6000 (pooled) | 75 | 12,642 | 20,152 | 11,535 | 15,834 | -8.8% | 0.21 | 0.048 | ok |
+| nation tiles per alive player @ t=6000 (pooled) | 75 | 12,642 | 20,152 | 13,182 | 17,397 | +4.3% | 0.13 | 0.5 | ok |
 
 Leader's share of all land (game-length proxy; the win bar is 80%):
 
 | metric | n | TS mean | TS std | C mean | C std | Δ mean | KS D | KS p | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| leader land share @ t=600 | 6 | 0.0386 | 0.00525 | 0.0387 | 0.00494 | +0.3% | 0.33 | 0.81 | ok |
-| leader land share @ t=1200 | 6 | 0.0747 | 0.00657 | 0.0661 | 0.00761 | -11.6% | 0.67 | 0.077 | ok |
-| leader land share @ t=2400 | 6 | 0.114 | 0.0209 | 0.104 | 0.00619 | -8.8% | 0.33 | 0.81 | ok |
-| leader land share @ t=4000 | 6 | 0.251 | 0.0755 | 0.226 | 0.0815 | -9.9% | 0.33 | 0.81 | ok |
-| leader land share @ t=6000 | 6 | 0.412 | 0.132 | 0.33 | 0.139 | -19.9% | 0.5 | 0.32 | ok |
+| leader land share @ t=600 | 6 | 0.0386 | 0.00525 | 0.0367 | 0.00221 | -5.0% | 0.33 | 0.81 | ok |
+| leader land share @ t=1200 | 6 | 0.0747 | 0.00657 | 0.0628 | 0.00676 | -15.9% | 0.83 | 0.012 | DIFF |
+| leader land share @ t=2400 | 6 | 0.114 | 0.0209 | 0.105 | 0.0163 | -7.9% | 0.33 | 0.81 | ok |
+| leader land share @ t=4000 | 6 | 0.251 | 0.0755 | 0.18 | 0.0352 | -28.3% | 0.67 | 0.077 | ok |
+| leader land share @ t=6000 | 6 | 0.412 | 0.132 | 0.339 | 0.0847 | -17.8% | 0.5 | 0.32 | ok |
 
 Games ended by a winner within 6000 ticks: TS 0/6, C 0/6.
 
@@ -475,21 +475,21 @@ A human owning a coastal disc sends one transport (default 1/5 of troops) to a c
 
 | scenario | distance | TS landings | TS ticks | C landings | C ticks |
 |---|---|---|---|---|---|
-| boat_d25_0 | 25.30 | 2 | 33.00 | 2 | 36.00 |
+| boat_d25_0 | 25.30 | 2 | 33.00 | 2 | 33.00 |
 | boat_d25_1 | 24.60 | 2 | 33.00 | 2 | 33.00 |
-| boat_d50_0 | 50.33 | 2 | 70.00 | 2 | 65.00 |
-| boat_d50_1 | 50.29 | 2 | 107.0 | 2 | 74.00 |
-| boat_d100_0 | 100.1 | 2 | 155.0 | 2 | 160.0 |
-| boat_d100_1 | 99.72 | 2 | 187.0 | 2 | 185.0 |
+| boat_d50_0 | 50.33 | 2 | 70.00 | 2 | 70.00 |
+| boat_d50_1 | 50.29 | 2 | 107.0 | 2 | 107.0 |
+| boat_d100_0 | 100.1 | 2 | 155.0 | 2 | 155.0 |
+| boat_d100_1 | 99.72 | 2 | 187.0 | 2 | 187.0 |
 | boat_d200_0 | 200.0 | 2 | 317.0 | 2 | 317.0 |
-| boat_d200_1 | 199.6 | 2 | 371.0 | 2 | 414.0 |
+| boat_d200_1 | 199.6 | 2 | 371.0 | 2 | 371.0 |
 | boat_d350_0 | 349.8 | 0 | - | 0 | - |
-| boat_d350_1 | 349.9 | 2 | 697.0 | 2 | 696.0 |
+| boat_d350_1 | 349.9 | 2 | 697.0 | 2 | 697.0 |
 
 TS: travel ticks ≈ 1.87 × straight-line distance (through-origin fit over 9 routes).
 
-C: travel ticks ≈ 1.91 × straight-line distance.
+C: travel ticks ≈ 1.87 × straight-line distance.
 
-Per-route C/TS travel-time ratio over 9 routes: mean 0.983, min 0.692, max 1.116.
+Per-route C/TS travel-time ratio over 9 routes: mean 1.000, min 1.000, max 1.000.
 
 ![boats](img/boats.png)
