@@ -302,6 +302,9 @@ TileRef ships_transport_source(OfeGame *g, PlayerId p, TileRef dst) {
     return closest_shore_by_water(g, st, p, landing, &st->route);
 }
 
+/* The shore tile a boat for `dst` would land on (targetTransportTile), or -1. */
+TileRef ships_transport_landing(OfeGame *g, PlayerId p, TileRef dst) { return transport_landing(g, state_of(g), p, dst); }
+
 UnitId ships_launch_transport(OfeGame *g, PlayerId p, TileRef dst, double troops) {
     ShipsState *st = state_of(g);
     TileRef landing = transport_landing(g, st, p, dst);

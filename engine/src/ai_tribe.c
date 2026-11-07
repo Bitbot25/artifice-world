@@ -8,6 +8,9 @@
  * whoever attacks it or picks a random non-allied neighbour. Tribes never
  * build anything and only use boats to reach free land or a neighbour across
  * a strait.
+ *
+ * This is the default build's approximation. The TS-parity build runs
+ * ai_tribe_ts.c instead (OpenFront's TribeExecution step for step).
  */
 #include "ai_common.h"
 

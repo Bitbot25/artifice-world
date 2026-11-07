@@ -87,6 +87,9 @@ void ai_state_free(OfeGame *g) {
 
 static bool ai_drives(const OfeGame *g, PlayerId p) {
     int type = g->players.type[p];
+#if OFE_TS_PARITY
+    if (type == OFE_PLAYER_BOT) return false; /* TS: TribeExecution is in the execution list (exec_ts.c) */
+#endif
     return type != OFE_PLAYER_HUMAN || g->cfg.humans_use_ai;
 }
 

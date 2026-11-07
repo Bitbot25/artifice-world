@@ -75,6 +75,43 @@ TileRef spawn_random_tile(OfeGame *g, PlayerId p, uint64_t *rng) {
     return found;
 }
 
+#if OFE_TS_PARITY
+/* SpawnExecution.getSpawn without a chosen tile: PseudoRandom(simpleHash(player id)
+ * + simpleHash(game id)); each try draws x then y, skips tiles that are water,
+ * owned or on a border (next to an owned tile), and, for the first 750
+ * tries, tiles within 30 of another player's spawn; the whole disc must be
+ * free land. A fresh stream per call, as TS builds one per SpawnExecution. */
+static TileRef spawn_random_tile_ts(OfeGame *g, PlayerId p) {
+    const OfeMap *m = g->map;
+    TsRandom rnd;
+    ts_rand_init(&rnd, (int64_t)g->players.id_hash[p] + g->id_seed);
+    IntVec disc = {0};
+    TileRef found = -1;
+    for (int tries = 1; tries <= MAX_SPAWN_TRIES && found < 0; tries++) {
+        int32_t x = (int32_t)ts_rand_int(&rnd, 0, m->width);
+        int32_t y = (int32_t)ts_rand_int(&rnd, 0, m->height);
+        TileRef c = map_ref(m, x, y);
+        if (!tile_is_free_land(g, c)) continue;
+        TileRef nb[4];
+        int n = map_neighbors4(m, c, nb);
+        bool border = false;
+        for (int i = 0; i < n; i++) border |= tile_owner(g, nb[i]) != 0;
+        if (border) continue;
+        if (tries <= RELAX_MIN_DIST_AT) {
+            bool too_close = false;
+            for (PlayerId o = 1; o < g->players.count && !too_close; o++) {
+                TileRef st = g->players.spawn_tile[o];
+                if (o != p && st >= 0 && map_manhattan(m, st, c) < MIN_DISTANCE_BETWEEN_PLAYERS) too_close = true;
+            }
+            if (too_close) continue;
+        }
+        if (spawn_disc(g, c, true, &disc) > 0) found = c;
+    }
+    IntVec_free(&disc);
+    return found;
+}
+#endif
+
 bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     PlayerTable *pl = &g->players;
     IntVec disc = {0};
@@ -92,7 +129,11 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     } else if (center >= 0) {
         ok = spawn_disc(g, center, false, &disc) > 0; /* a chosen spot is never swapped for another */
     } else {
+#if OFE_TS_PARITY
+        center = spawn_random_tile_ts(g, p);
+#else
         center = spawn_random_tile(g, p, &g->rng);
+#endif
         ok = center >= 0 && spawn_disc(g, center, true, &disc) > 0;
     }
     if (!ok) {
@@ -113,7 +154,12 @@ bool spawn_player(OfeGame *g, PlayerId p, TileRef center) {
     pl->dead[p] = 0;
     pl->spawn_tile[p] = center;
     event_emit(g, OFE_EV_PLAYER_SPAWNED, 0, p, 0, center, 0);
+#if OFE_TS_PARITY
+    /* TS: a tribe's TribeExecution is created by its spawn execution (exec_ts.c). */
+    if (first && pl->type[p] == OFE_PLAYER_NATION) ai_on_spawn(g, p);
+#else
     if (first && pl->type[p] != OFE_PLAYER_HUMAN) ai_on_spawn(g, p);
+#endif
     IntVec_free(&old_copy);
     IntVec_free(&disc);
     return true;

@@ -1,0 +1,13 @@
+{
+ "name": "tribes_first_boat",
+ "map": "world",
+ "map_size": "compact",
+ "game_id": "PARITY02",
+ "difficulty": "medium",
+ "nations": "disabled",
+ "bots": 20,
+ "humans": 0,
+ "ticks": 650,
+ "intents": [],
+ "description": "20 tribes with boats on: exact up to the first transport ship (tick 663)."
+}

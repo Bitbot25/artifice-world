@@ -162,8 +162,11 @@ static PlayerId add_player(OfeGame *g, int type, const char *name, int16_t team,
 }
 
 /* OpenFront's player ids are 8-character strings drawn, humans first and then
- * nations, from PseudoRandom(simpleHash(gameID)). Only their hash is observable
- * (cluster-check offsets, spawn random streams). */
+ * nations, from PseudoRandom(simpleHash(gameID)); tribes (TribeSpawner) draw
+ * from PseudoRandom(simpleHash(gameID) + 2), two draws for the tribe's name
+ * and then its id. Only the id's hash is observable (cluster-check offsets,
+ * spawn and tribe random streams). Maps with custom tribe names (OpenFront's
+ * customTribes: ChannelIslands, Germany, LosAngeles, ...) draw differently. */
 static void game_assign_ids(OfeGame *g) {
     char fallback[24];
     const char *id = g->cfg.game_id;
@@ -172,12 +175,18 @@ static void game_assign_ids(OfeGame *g) {
         id = fallback;
     }
     g->id_seed = ts_simple_hash(id);
-    TsRandom rnd;
+    TsRandom rnd, tribe_rnd;
     ts_rand_init(&rnd, g->id_seed);
+    ts_rand_init(&tribe_rnd, g->id_seed + 2);
     char pid[9];
     for (PlayerId p = 1; p < g->players.count; p++) {
-        if (g->players.type[p] == OFE_PLAYER_BOT) continue; /* tribes draw elsewhere */
-        ts_rand_id(&rnd, pid);
+        if (g->players.type[p] == OFE_PLAYER_BOT) {
+            ts_rand_next(&tribe_rnd); /* randomTribeName: prefix, suffix */
+            ts_rand_next(&tribe_rnd);
+            ts_rand_id(&tribe_rnd, pid);
+        } else {
+            ts_rand_id(&rnd, pid);
+        }
         g->players.id_hash[p] = (uint32_t)ts_simple_hash(pid);
     }
 }
@@ -246,7 +255,9 @@ OfeGame *ofe_game_create(OfeMap *map, const OfeConfig *config, uint64_t seed) {
 
     /* Tribes take their spots first, then nations settle near their map spots
      * (cut short where a tribe is already) and hop around until the phase ends. */
+#if !OFE_TS_PARITY /* TS spawns tribes with SpawnExecutions that tick on tick 1 (exec_ts.c) */
     ai_spawn_tribes(g);
+#endif
     ai_spawn_phase_tick(g);
     if (g->spawn_phase_ticks == 0) spawn_phase_end(g);
     return g;

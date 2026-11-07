@@ -15,13 +15,18 @@
  * new PlayerExecution first ticks the tick after it is created. Per-player
  * work (growth, expiry, enclaves) and attacks interleave in that order.
  *
- * Executions modelled here: spawn, player, attack, the intent kinds below and the
+ * Executions modelled here: spawn, player, attack, the intent kinds below, the
  * unit executions of units_ts.c (construction, upgrade, delete, silo, SAM, SAM
- * missile, nuke, MIRV). Ships and rail still tick after the list, in the
- * default order, and so do nations and tribes (they join the TS order in later
- * waves).
+ * missile, nuke, MIRV), and tribes: every tribe has a SpawnExecution created at
+ * game start (it ticks on tick 1 and adds the tribe as a player, so tribe small
+ * ids follow the humans and nations in creation order), which adds the tribe's
+ * PlayerExecution and then its TribeExecution (ai_tribe_ts.c). A tribe
+ * therefore ticks right after its own PlayerExecution, in the order the tribes
+ * spawned. Ships, rail and nations still tick after the list, in the default
+ * order (they join the TS order in later waves).
  */
 #include "internal.h"
+#include "tribe_ts.h"
 #include "units_ts.h"
 
 #if OFE_TS_PARITY
@@ -35,6 +40,8 @@ enum TsKind {
     TX_DONATE_TROOPS,
     TX_AT_INIT, /* intent whose work TS does in init(): alliance request, reject, extension, ... */
     TX_UNIT, /* a unit execution (units_ts.c), including those made by build / upgrade / delete intents */
+    TX_TRIBE_SPAWN, /* a tribe's SpawnExecution (TribeSpawner): random spot, ticks during the spawn phase */
+    TX_TRIBE, /* TribeExecution (ai_tribe_ts.c) */
 };
 
 typedef struct TsExec {
@@ -44,6 +51,7 @@ typedef struct TsExec {
     OfeIntent in;
     double amount; /* donations: the amount fixed at init */
     UnitExec *ux; /* TX_UNIT */
+    TribeTs tribe; /* TX_TRIBE */
 } TsExec;
 OFE_VEC(TsExecVec, TsExec)
 
@@ -52,6 +60,7 @@ struct TsExecs {
     TsExecVec pend; /* created, not yet initialised, in creation order */
     bool win_check_on; /* WinCheckExecution is inactive during the spawn phase */
     int32_t next_eid; /* identity of unit executions */
+    bool tribes_queued; /* the tribes' spawn executions were created at game start */
 };
 
 static struct TsExecs *execs_of(OfeGame *g) {
@@ -90,6 +99,7 @@ void ts_execs_copy(OfeGame *dst, const OfeGame *src) {
     }
     d->win_check_on = src->ts->win_check_on;
     d->next_eid = src->ts->next_eid;
+    d->tribes_queued = src->ts->tribes_queued;
 }
 
 /* ---- Unit executions (units_ts.c) ------------------------------------------------ */
@@ -138,23 +148,92 @@ static uint8_t kind_of_intent(int type) {
     }
 }
 
+/* Executor.createExec: the execution an intent becomes (queued, not yet initialised). */
+static TsExec exec_of_intent(struct TsExecs *ts, const OfeIntent *in) {
+    TsExec ex = {0};
+    ex.kind = kind_of_intent(in->type);
+    ex.active = 1;
+    ex.player = in->player;
+    ex.arg = -1;
+    ex.in = *in;
+    if (ex.kind == TX_UNIT) {
+        ex.ux = uexec_from_intent(&ex.in);
+        uexec_set_eid(ex.ux, ++ts->next_eid);
+    }
+    return ex;
+}
+
 static void create_execs(OfeGame *g) {
     struct TsExecs *ts = execs_of(g);
     IntentVec *q = &g->pending_intents;
-    for (int32_t i = 0; i < q->len; i++) {
+    for (int32_t i = 0; i < q->len; i++) TsExecVec_push(&ts->pend, exec_of_intent(ts, &q->data[i]));
+    q->len = 0;
+}
+
+/* ---- Tribes (TribeSpawner, SpawnExecution, TribeExecution) ---------------------- */
+
+/* Executions that run during the spawn phase: spawns only. */
+static bool runs_in_spawn_phase(uint8_t kind) { return kind == TX_SPAWN || kind == TX_TRIBE_SPAWN; }
+
+/* GameRunner.init: one SpawnExecution per tribe, created before any intent,
+ * so they initialise at the end of tick 0 and tick on tick 1, in player order
+ * (which is also the order TS adds the tribes as players). */
+static void queue_tribe_spawns(OfeGame *g) {
+    struct TsExecs *ts = execs_of(g);
+    if (ts->tribes_queued) return;
+    ts->tribes_queued = true;
+    for (PlayerId p = 1; p < g->players.count; p++) {
+        if (g->players.type[p] != OFE_PLAYER_BOT) continue;
         TsExec ex = {0};
-        ex.kind = kind_of_intent(q->data[i].type);
+        ex.kind = TX_TRIBE_SPAWN;
         ex.active = 1;
-        ex.player = q->data[i].player;
+        ex.player = p;
         ex.arg = -1;
-        ex.in = q->data[i];
-        if (ex.kind == TX_UNIT) {
-            ex.ux = uexec_from_intent(&ex.in);
-            uexec_set_eid(ex.ux, ++ts->next_eid);
-        }
         TsExecVec_push(&ts->pend, ex);
     }
-    q->len = 0;
+}
+
+/* SpawnExecution.tick for a tribe: take a random spot (spawn_player draws from
+ * the tribe's own stream) and, the first time, add its PlayerExecution and
+ * then its TribeExecution (whose constructor draws the beat and ratios). */
+static void tick_tribe_spawn(OfeGame *g, TsExec *ex) {
+    ex->active = 0;
+    PlayerId p = ex->player;
+    bool first = !g->players.spawned[p];
+    if (!spawn_player(g, p, -1) || !first) return;
+    TsExec pe = {0};
+    pe.kind = TX_PLAYER;
+    pe.active = 1;
+    pe.player = p;
+    pe.arg = -1;
+    TsExecVec_push(&g->ts->pend, pe);
+    TsExec te = {0};
+    te.kind = TX_TRIBE;
+    te.active = 1;
+    te.player = p;
+    te.arg = -1;
+    tribe_ts_init(g, p, &te.tribe);
+    TsExecVec_push(&g->ts->pend, te);
+}
+
+/* Game.addExecution(new AttackExecution(troops, attacker, target)) from an AI. */
+void ts_exec_add_attack(OfeGame *g, PlayerId attacker, PlayerId target, double troops) {
+    TsExec ex = {0};
+    ex.kind = TX_ATTACK;
+    ex.active = 1;
+    ex.player = attacker;
+    ex.arg = -1;
+    ex.in.type = OFE_INTENT_ATTACK;
+    ex.in.player = attacker;
+    ex.in.target = target;
+    ex.in.troops = troops;
+    TsExecVec_push(&execs_of(g)->pend, ex);
+}
+
+/* Game.addExecution for any intent-shaped execution (extension, delete unit, ...). */
+void ts_exec_add_intent(OfeGame *g, const OfeIntent *in) {
+    struct TsExecs *ts = execs_of(g);
+    TsExecVec_push(&ts->pend, exec_of_intent(ts, in));
 }
 
 /* ---- Init ----------------------------------------------------------------------- */
@@ -259,6 +338,10 @@ static void tick_exec(OfeGame *g, TsExec *ex) {
     case TX_DONATE_GOLD:
     case TX_DONATE_TROOPS: tick_donate(g, ex); break;
     case TX_UNIT: ex->active = uexec_tick(g, ex->ux); break;
+    case TX_TRIBE_SPAWN: tick_tribe_spawn(g, ex); break;
+    case TX_TRIBE:
+        if (!tribe_ts_tick(g, ex->player, &ex->tribe)) ex->active = 0;
+        break;
     default: ex->active = 0; break;
     }
 }
@@ -266,6 +349,7 @@ static void tick_exec(OfeGame *g, TsExec *ex) {
 /* Runs one tick of the TS execution list. */
 void game_tick_ts(OfeGame *g) {
     struct TsExecs *ts = execs_of(g);
+    queue_tribe_spawns(g);
     create_execs(g);
 
     /* SpawnTimerExecution is first in the list. */
@@ -277,7 +361,7 @@ void game_tick_ts(OfeGame *g) {
     for (int32_t i = 0; i < ts->run.len; i++) {
         TsExec *ex = &ts->run.data[i];
         if (!ex->active || (ex->ux && !uexec_active(ex->ux))) continue; /* a nuke may be called off by an earlier one */
-        if (g->start_tick < 0 && ex->kind != TX_SPAWN) continue;
+        if (g->start_tick < 0 && !runs_in_spawn_phase(ex->kind)) continue;
         tick_exec(g, ex);
     }
 
@@ -285,7 +369,7 @@ void game_tick_ts(OfeGame *g) {
     TsExecVec keep = {0}, inited = {0};
     for (int32_t i = 0; i < ts->pend.len; i++) {
         TsExec ex = ts->pend.data[i];
-        if (g->start_tick < 0 && ex.kind != TX_SPAWN) {
+        if (g->start_tick < 0 && !runs_in_spawn_phase(ex.kind)) {
             TsExecVec_push(&keep, ex);
             continue;
         }
